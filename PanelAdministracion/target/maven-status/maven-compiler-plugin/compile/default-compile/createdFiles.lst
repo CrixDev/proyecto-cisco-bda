@@ -1,5 +1,13 @@
+com\mycompany\paneladministracion\dtos\AlumnoBloqueadoDTO.class
+com\mycompany\paneladministracion\dao\ApartadoDAO.class
 com\mycompany\paneladministracion\PanelAdministracion.class
-com\mycompany\paneladministracion\PanelAdministracionLogica.class
-com\mycompany\paneladministracion\Computadora.class
-com\mycompany\paneladministracion\Alumno.class
-com\mycompany\paneladministracion\Apartado.class
+persistencia\PersistenciaException.class
+com\mycompany\paneladministracion\dtos\ComputadoraDTO.class
+com\mycompany\paneladministracion\dtos\ApartadoDTO.class
+com\mycompany\paneladministracion\entidades\Apartado.class
+com\mycompany\paneladministracion\dao\ComputadoraDAO.class
+com\mycompany\paneladministracion\entidades\Computadora.class
+com\mycompany\paneladministracion\dao\AlumnoDAO.class
+com\mycompany\paneladministracion\entidades\Alumno.class
+persistencia\IConexionBD.class
+persistencia\ConexionBD.class

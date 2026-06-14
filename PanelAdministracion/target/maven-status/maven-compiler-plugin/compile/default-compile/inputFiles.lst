@@ -1,5 +1,13 @@
-C:\Users\devor\Proyectos\itson\bdacisco\PanelAdministracion\src\main\java\com\mycompany\paneladministracion\Alumno.java
-C:\Users\devor\Proyectos\itson\bdacisco\PanelAdministracion\src\main\java\com\mycompany\paneladministracion\Apartado.java
-C:\Users\devor\Proyectos\itson\bdacisco\PanelAdministracion\src\main\java\com\mycompany\paneladministracion\Computadora.java
+C:\Users\devor\Proyectos\itson\bdacisco\PanelAdministracion\src\main\java\com\mycompany\paneladministracion\dao\AlumnoDAO.java
+C:\Users\devor\Proyectos\itson\bdacisco\PanelAdministracion\src\main\java\com\mycompany\paneladministracion\dao\ApartadoDAO.java
+C:\Users\devor\Proyectos\itson\bdacisco\PanelAdministracion\src\main\java\com\mycompany\paneladministracion\dao\ComputadoraDAO.java
+C:\Users\devor\Proyectos\itson\bdacisco\PanelAdministracion\src\main\java\com\mycompany\paneladministracion\dtos\AlumnoBloqueadoDTO.java
+C:\Users\devor\Proyectos\itson\bdacisco\PanelAdministracion\src\main\java\com\mycompany\paneladministracion\dtos\ApartadoDTO.java
+C:\Users\devor\Proyectos\itson\bdacisco\PanelAdministracion\src\main\java\com\mycompany\paneladministracion\dtos\ComputadoraDTO.java
+C:\Users\devor\Proyectos\itson\bdacisco\PanelAdministracion\src\main\java\com\mycompany\paneladministracion\entidades\Alumno.java
+C:\Users\devor\Proyectos\itson\bdacisco\PanelAdministracion\src\main\java\com\mycompany\paneladministracion\entidades\Apartado.java
+C:\Users\devor\Proyectos\itson\bdacisco\PanelAdministracion\src\main\java\com\mycompany\paneladministracion\entidades\Computadora.java
 C:\Users\devor\Proyectos\itson\bdacisco\PanelAdministracion\src\main\java\com\mycompany\paneladministracion\PanelAdministracion.java
-C:\Users\devor\Proyectos\itson\bdacisco\PanelAdministracion\src\main\java\com\mycompany\paneladministracion\PanelAdministracionLogica.java
+C:\Users\devor\Proyectos\itson\bdacisco\PanelAdministracion\src\main\java\persistencia\ConexionBD.java
+C:\Users\devor\Proyectos\itson\bdacisco\PanelAdministracion\src\main\java\persistencia\IConexionBD.java
+C:\Users\devor\Proyectos\itson\bdacisco\PanelAdministracion\src\main\java\persistencia\PersistenciaException.java
