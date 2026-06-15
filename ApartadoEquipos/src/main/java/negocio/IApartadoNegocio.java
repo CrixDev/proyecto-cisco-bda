@@ -12,4 +12,5 @@ public interface IApartadoNegocio {
     List<ComputadoraDTO> obtenerComputadorasDelLaboratorio() throws NegocioException;
     ApartadoResultadoDTO realizarApartado(String numeroControl, Long computadoraId) throws NegocioException;
     public void liberarEquipo(String numeroControl) throws NegocioException ;
+    String obtenerNombreLaboratorio() throws NegocioException;
 }

@@ -1,66 +1,36 @@
-/*
- * Click nbfs://nbhost/SystemFileSystem/Templates/Licenses/license-default.txt to change this license
- * Click nbfs://nbhost/SystemFileSystem/Templates/Classes/Class.java to edit this template
- */
 package com.mycompany.paneladministracion.entidades;
 
+import java.time.LocalDateTime;
+
 /**
- *
- * @author Cristian Devora
+ * Vista de un préstamo (apartado) registrado para consulta del encargado.
  */
 public class Apartado {
 
     private int id;
-    private Alumno alumno;
-    private Computadora computadora;
-    private String fecha;
-    private String hora;
+    private String alumnoNombre;
+    private int numeroMaquina;
+    private String laboratorioNombre;
+    private LocalDateTime inicioPrestamo;
+    private LocalDateTime finPrestamo;   // null si está activo
 
-    public Apartado(int id, Alumno alumno, Computadora computadora, String fecha, String hora) {
-        this.id = id;
-        this.alumno = alumno;
-        this.computadora = computadora;
-        this.fecha = fecha;
-        this.hora = hora;
+    public Apartado() {
     }
 
-    public int getId() {
-        return id;
-    }
+    public int getId() { return id; }
+    public void setId(int id) { this.id = id; }
+    public String getAlumnoNombre() { return alumnoNombre; }
+    public void setAlumnoNombre(String alumnoNombre) { this.alumnoNombre = alumnoNombre; }
+    public int getNumeroMaquina() { return numeroMaquina; }
+    public void setNumeroMaquina(int numeroMaquina) { this.numeroMaquina = numeroMaquina; }
+    public String getLaboratorioNombre() { return laboratorioNombre; }
+    public void setLaboratorioNombre(String laboratorioNombre) { this.laboratorioNombre = laboratorioNombre; }
+    public LocalDateTime getInicioPrestamo() { return inicioPrestamo; }
+    public void setInicioPrestamo(LocalDateTime inicioPrestamo) { this.inicioPrestamo = inicioPrestamo; }
+    public LocalDateTime getFinPrestamo() { return finPrestamo; }
+    public void setFinPrestamo(LocalDateTime finPrestamo) { this.finPrestamo = finPrestamo; }
 
-    public void setId(int id) {
-        this.id = id;
-    }
-
-    public Alumno getAlumno() {
-        return alumno;
-    }
-
-    public void setAlumno(Alumno alumno) {
-        this.alumno = alumno;
-    }
-
-    public Computadora getComputadora() {
-        return computadora;
-    }
-
-    public void setComputadora(Computadora computadora) {
-        this.computadora = computadora;
-    }
-
-    public String getFecha() {
-        return fecha;
-    }
-
-    public void setFecha(String fecha) {
-        this.fecha = fecha;
-    }
-
-    public String getHora() {
-        return hora;
-    }
-
-    public void setHora(String hora) {
-        this.hora = hora;
+    public boolean isActivo() {
+        return finPrestamo == null;
     }
 }

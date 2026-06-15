@@ -4,50 +4,57 @@
  */
 package com.mycompany.paneladministracion.dao;
 
-import com.mycompany.paneladministracion.dtos.ApartadoDTO;
-import com.mycompany.paneladministracion.entidades.Alumno;
 import com.mycompany.paneladministracion.entidades.Apartado;
-import com.mycompany.paneladministracion.entidades.Computadora;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import persistencia.IConexionBD;
+import persistencia.PersistenciaException;
 
 /**
- * DAO de apartados. Maneja datos prueba en memoria (sin conexión a base de datos).
+ * DAO de consulta de apartados (préstamos) para el panel del encargado.
  *
  * @author Cristian Devora
  */
 public class ApartadoDAO {
 
-    private final List<Apartado> apartados;
+    private final IConexionBD conexion;
 
-    public ApartadoDAO() {
-        this.apartados = new ArrayList<>();
-        cargarDatosPrueba();
+    public ApartadoDAO(IConexionBD conexion) {
+        this.conexion = conexion;
     }
 
-    private void cargarDatosPrueba() {
-        Alumno alumno1 = new Alumno(1, "Datos prueba - Juan Pérez", "00000001", false);
-        Alumno alumno3 = new Alumno(3, "Datos prueba - Carlos Ruiz", "00000003", false);
-        Computadora pc1 = new Computadora(1, "Datos prueba - PC-01", true);
-        Computadora pc3 = new Computadora(3, "Datos prueba - PC-03", true);
-        Computadora pc4 = new Computadora(4, "Datos prueba - PC-04", true);
-
-        apartados.add(new Apartado(1, alumno1, pc1, "2026-06-14", "09:00"));
-        apartados.add(new Apartado(2, alumno3, pc3, "2026-06-14", "10:30"));
-        apartados.add(new Apartado(3, alumno1, pc4, "2026-06-15", "12:00"));
-    }
-
-    // 3. Mostrar los apartados de computadoras.
-    public List<ApartadoDTO> mostrarApartados() {
-        List<ApartadoDTO> lista = new ArrayList<>();
-        for (Apartado apartado : apartados) {
-            lista.add(new ApartadoDTO(
-                    apartado.getId(),
-                    apartado.getAlumno().getMatricula(),
-                    apartado.getAlumno().getNombre(),
-                    apartado.getComputadora().getEtiqueta(),
-                    apartado.getFecha(),
-                    apartado.getHora()));
+    public List<Apartado> listarTodos() throws PersistenciaException {
+        List<Apartado> lista = new ArrayList<>();
+        String sql = """
+            SELECT p.id_prestamo, p.inicio_prestamo, p.fin_prestamo,
+                   CONCAT(a.nombre, ' ', a.apellido) AS alumno_nombre,
+                   c.numero_maquina, l.nombre AS lab_nombre
+            FROM Prestamos p
+            INNER JOIN Alumnos a ON p.id_alumno = a.id_alumno
+            INNER JOIN Computadoras c ON p.id_computadora = c.id_computadora
+            LEFT JOIN Laboratorios l ON c.id_laboratorio = l.id_laboratorio
+            ORDER BY p.inicio_prestamo DESC;
+            """;
+        try (Connection con = conexion.crearConexion();
+             PreparedStatement ps = con.prepareStatement(sql);
+             ResultSet rs = ps.executeQuery()) {
+            while (rs.next()) {
+                Apartado ap = new Apartado();
+                ap.setId(rs.getInt("id_prestamo"));
+                ap.setAlumnoNombre(rs.getString("alumno_nombre"));
+                ap.setNumeroMaquina(rs.getInt("numero_maquina"));
+                ap.setLaboratorioNombre(rs.getString("lab_nombre"));
+                ap.setInicioPrestamo(rs.getObject("inicio_prestamo", LocalDateTime.class));
+                ap.setFinPrestamo(rs.getObject("fin_prestamo", LocalDateTime.class));
+                lista.add(ap);
+            }
+        } catch (SQLException e) {
+            throw new PersistenciaException("Error al listar apartados: " + e.getMessage());
         }
         return lista;
     }

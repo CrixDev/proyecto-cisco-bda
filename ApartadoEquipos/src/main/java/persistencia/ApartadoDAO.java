@@ -52,6 +52,13 @@ public class ApartadoDAO implements IApartadoDAO {
                 }
             }
 
+            // 3. Marcar la computadora como 'Apartada' (mantener estatus sincronizado)
+            String sqlEstatus = "UPDATE Computadoras SET estatus = 'Apartada' WHERE id_computadora = ?;";
+            try (PreparedStatement ps = conTransaccion.prepareStatement(sqlEstatus)) {
+                ps.setInt(1, apartado.getComputadora().getId());
+                ps.executeUpdate();
+            }
+
             conTransaccion.commit();
             return apartado;
 
@@ -77,10 +84,24 @@ public class ApartadoDAO implements IApartadoDAO {
             }
         }
 
+        // Tomar el horario de servicio real del laboratorio (no horas fijas)
+        Time horaInicio = Time.valueOf("07:00:00");
+        Time horaFin = Time.valueOf("21:00:00");
+        String sqlHorario = "SELECT hora_inicio, hora_fin FROM Laboratorios WHERE id_laboratorio = ?;";
+        try (PreparedStatement ps = con.prepareStatement(sqlHorario)) {
+            ps.setInt(1, idLaboratorio);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) {
+                    if (rs.getTime("hora_inicio") != null) horaInicio = rs.getTime("hora_inicio");
+                    if (rs.getTime("hora_fin") != null) horaFin = rs.getTime("hora_fin");
+                }
+            }
+        }
+
         String insert = "INSERT INTO PrestamosPD (hora_Inicio, hora_fin, fecha, id_laboratorio) VALUES (?, ?, ?, ?);";
         try (PreparedStatement ps = con.prepareStatement(insert, Statement.RETURN_GENERATED_KEYS)) {
-            ps.setTime(1, Time.valueOf("07:00:00"));
-            ps.setTime(2, Time.valueOf("21:00:00"));
+            ps.setTime(1, horaInicio);
+            ps.setTime(2, horaFin);
             ps.setObject(3, LocalDate.now());
             ps.setInt(4, idLaboratorio);
             ps.executeUpdate();
@@ -171,8 +192,10 @@ public class ApartadoDAO implements IApartadoDAO {
             try (ResultSet rs = ps.executeQuery()) {
                 if (rs.next()) return rs.getInt(1) > 0;
             }
-        } catch (Exception e) {
-            return false;
+        } catch (NumberFormatException e) {
+            throw new PersistenciaException("El número de control debe ser numérico: " + numeroControl);
+        } catch (SQLException e) {
+            throw new PersistenciaException("Error al verificar apartados activos: " + e.getMessage());
         }
         return false;
     }
@@ -193,8 +216,10 @@ public class ApartadoDAO implements IApartadoDAO {
                     totalMinutos += (int) java.time.Duration.between(inicio, fin).toMinutes();
                 }
             }
-        } catch (Exception e) {
-            return 0;
+        } catch (NumberFormatException e) {
+            throw new PersistenciaException("El número de control debe ser numérico: " + numeroControl);
+        } catch (SQLException e) {
+            throw new PersistenciaException("Error al calcular el tiempo de uso diario: " + e.getMessage());
         }
         return totalMinutos;
     }

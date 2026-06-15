@@ -4,11 +4,14 @@
  */
 package persistencia;
 
+import java.net.Inet4Address;
 import java.net.InetAddress;
+import java.net.NetworkInterface;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.util.Enumeration;
 
 import dto.SesionDTO;
 import entidad.Alumno;
@@ -51,22 +54,14 @@ public class BloqueoDAO implements IBloqueoDAO {
                 }
             }
 
-            // Si esta máquina no está registrada con su IP real (p. ej. entorno de
-            // pruebas), se usa la primera computadora del catálogo como respaldo
-            // para no bloquear la demostración del programa.
-            String sqlFallback = "SELECT id_computadora, numero_maquina, direccion_ip, estatus, id_laboratorio "
-                    + "FROM Computadoras ORDER BY id_computadora LIMIT 1;";
-            try (PreparedStatement psF = con.prepareStatement(sqlFallback); ResultSet rs = psF.executeQuery()) {
-                if (rs.next()) {
-                    return mapearComputadora(rs);
-                }
-            }
-
         } catch (SQLException e) {
             throw new PersistenciaException("Error al identificar la computadora: " + e.getMessage());
         }
 
-        throw new PersistenciaException("No hay computadoras registradas en la base de datos.");
+        // No se cae silenciosamente a otra PC: si la IP de esta máquina no está
+        // registrada, se informa con claridad para que se registre correctamente.
+        throw new PersistenciaException("Esta computadora (IP " + ipLocal
+                + ") no está registrada en la base de datos. Regístrala con su IP real en el Panel de Administración.");
     }
 
     private Computadora mapearComputadora(ResultSet rs) throws SQLException {
@@ -79,8 +74,35 @@ public class BloqueoDAO implements IBloqueoDAO {
         return pc;
     }
 
+    /**
+     * Detecta la IPv4 real de la máquina (LAN) recorriendo las interfaces de red
+     * y descartando loopback, interfaces caídas y adaptadores virtuales
+     * (VPN/VMware/VirtualBox/Hyper-V). Es más fiable que InetAddress.getLocalHost(),
+     * que suele devolver 127.0.0.1 o la IP de un adaptador virtual.
+     */
     private String obtenerIpLocal() {
         try {
+            Enumeration<NetworkInterface> ifaces = NetworkInterface.getNetworkInterfaces();
+            while (ifaces.hasMoreElements()) {
+                NetworkInterface iface = ifaces.nextElement();
+                if (!iface.isUp() || iface.isLoopback() || iface.isVirtual()) {
+                    continue;
+                }
+                String nombre = iface.getDisplayName() == null ? "" : iface.getDisplayName().toLowerCase();
+                if (nombre.contains("virtual") || nombre.contains("vmware")
+                        || nombre.contains("vbox") || nombre.contains("hyper-v")
+                        || nombre.contains("loopback")) {
+                    continue;
+                }
+                Enumeration<InetAddress> addrs = iface.getInetAddresses();
+                while (addrs.hasMoreElements()) {
+                    InetAddress addr = addrs.nextElement();
+                    if (addr instanceof Inet4Address && !addr.isLoopbackAddress() && addr.isSiteLocalAddress()) {
+                        return addr.getHostAddress();
+                    }
+                }
+            }
+            // Último recurso si no se encontró una IP de LAN
             return InetAddress.getLocalHost().getHostAddress();
         } catch (Exception e) {
             return "0.0.0.0";

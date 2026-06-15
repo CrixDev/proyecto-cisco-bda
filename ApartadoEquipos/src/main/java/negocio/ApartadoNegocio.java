@@ -9,6 +9,8 @@ import dto.ComputadoraDTO;
 import entidad.*;
 import persistencia.*;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -82,6 +84,11 @@ public class ApartadoNegocio implements IApartadoNegocio {
             if (alumno == null) throw new NegocioException("Alumno no encontrado.");
 
             Laboratorio centro = centroDAO.obtenerPrimero();
+            if (centro == null) throw new NegocioException("No hay centros de laboratorio registrados.");
+
+            // Validar que estemos dentro del horario de servicio del laboratorio
+            validarHorarioServicio(centro);
+
             List<Computadora> computadoras = apartadoDAO.obtenerComputadorasPorCentro((long) centro.getId());
 
             Computadora computadora = computadoras.stream()
@@ -100,7 +107,9 @@ public class ApartadoNegocio implements IApartadoNegocio {
             apartado.setAlumno(alumno);
             apartado.setComputadora(computadora);
             apartado.setFechaHoraInicio(LocalDateTime.now());
-            apartado.setFechaHoraFin(LocalDateTime.now().plusMinutes(DURACION_MINUTOS));
+            // El apartado queda ACTIVO (fin_prestamo = NULL); se cierra al liberar
+            // la PC en el Bloqueador. Así el BloqueadorPC lo reconoce como vigente.
+            apartado.setFechaHoraFin(null);
 
             apartadoDAO.guardar(apartado);
 
@@ -123,4 +132,29 @@ public class ApartadoNegocio implements IApartadoNegocio {
         throw new NegocioException("No se pudo completar la liberación del equipo.", e);
     }
 }
+
+    @Override
+    public String obtenerNombreLaboratorio() throws NegocioException {
+        try {
+            Laboratorio centro = centroDAO.obtenerPrimero();
+            return centro != null ? centro.getNombre() : "Sin asignar";
+        } catch (PersistenciaException e) {
+            throw new NegocioException("Error al obtener el laboratorio.", e);
+        }
+    }
+
+    /** Verifica que la hora actual esté dentro del horario de servicio del centro. */
+    private void validarHorarioServicio(Laboratorio centro) throws NegocioException {
+        LocalTime inicio = centro.getHoraInicio();
+        LocalTime fin = centro.getHoraFin();
+        if (inicio == null || fin == null) return; // sin horario configurado, no se restringe
+
+        LocalTime ahora = LocalTime.now();
+        if (ahora.isBefore(inicio) || ahora.isAfter(fin)) {
+            DateTimeFormatter f = DateTimeFormatter.ofPattern("HH:mm");
+            throw new NegocioException("El laboratorio " + centro.getNombre()
+                    + " presta servicio de " + inicio.format(f) + " a " + fin.format(f)
+                    + ". No es posible apartar fuera de ese horario.");
+        }
+    }
 }

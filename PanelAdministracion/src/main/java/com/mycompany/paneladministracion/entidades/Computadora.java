@@ -1,46 +1,38 @@
-/*
- * Click nbfs://nbhost/SystemFileSystem/Templates/Licenses/license-default.txt to change this license
- * Click nbfs://nbhost/SystemFileSystem/Templates/Classes/Class.java to edit this template
- */
 package com.mycompany.paneladministracion.entidades;
 
 /**
- *
- * @author Cristian Devora
+ * Computadora de un laboratorio.
  */
 public class Computadora {
 
     private int id;
-    private String etiqueta;
-    private boolean habilitada;
+    private int numeroMaquina;
+    private String direccionIp;
+    private String estatus;            // Disponible / Apartada / Deshabilitada
+    private String tipoComputadora;    // Windows / Mac / Linux
+    private int idLaboratorio;
+    private String laboratorioNombre;  // solo para mostrar
 
-    public Computadora(int id, String etiqueta, boolean habilitada) {
-        this.id = id;
-        this.etiqueta = etiqueta;
-        this.habilitada = habilitada;
+    public Computadora() {
     }
 
-    public int getId() {
-        return id;
-    }
+    public int getId() { return id; }
+    public void setId(int id) { this.id = id; }
+    public int getNumeroMaquina() { return numeroMaquina; }
+    public void setNumeroMaquina(int numeroMaquina) { this.numeroMaquina = numeroMaquina; }
+    public String getDireccionIp() { return direccionIp; }
+    public void setDireccionIp(String direccionIp) { this.direccionIp = direccionIp; }
+    public String getEstatus() { return estatus; }
+    public void setEstatus(String estatus) { this.estatus = estatus; }
+    public String getTipoComputadora() { return tipoComputadora; }
+    public void setTipoComputadora(String tipoComputadora) { this.tipoComputadora = tipoComputadora; }
+    public int getIdLaboratorio() { return idLaboratorio; }
+    public void setIdLaboratorio(int idLaboratorio) { this.idLaboratorio = idLaboratorio; }
+    public String getLaboratorioNombre() { return laboratorioNombre; }
+    public void setLaboratorioNombre(String laboratorioNombre) { this.laboratorioNombre = laboratorioNombre; }
 
-    public void setId(int id) {
-        this.id = id;
-    }
-
-    public String getEtiqueta() {
-        return etiqueta;
-    }
-
-    public void setEtiqueta(String etiqueta) {
-        this.etiqueta = etiqueta;
-    }
-
-    public boolean isHabilitada() {
-        return habilitada;
-    }
-
-    public void setHabilitada(boolean habilitada) {
-        this.habilitada = habilitada;
+    @Override
+    public String toString() {
+        return "Equipo #" + numeroMaquina + " (" + direccionIp + ")";
     }
 }

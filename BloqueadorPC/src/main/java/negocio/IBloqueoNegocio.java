@@ -29,6 +29,12 @@ public interface IBloqueoNegocio {
     boolean validarContrasena(int idAlumno, String contrasena) throws NegocioException;
 
     /**
+     * Paso 3 (alterno): valida la contraseña maestra del laboratorio para que el
+     * personal autorizado pueda desbloquear el equipo.
+     */
+    boolean validarContrasenaMaestra(int idLaboratorio, String contrasena) throws NegocioException;
+
+    /**
      * Paso 4: libera el apartado y deja la computadora disponible de nuevo.
      */
     void liberarApartado(int idComputadora) throws NegocioException;

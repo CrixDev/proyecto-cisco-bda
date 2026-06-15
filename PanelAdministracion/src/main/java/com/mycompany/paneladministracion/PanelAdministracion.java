@@ -6,10 +6,19 @@ package com.mycompany.paneladministracion;
 
 import com.mycompany.paneladministracion.dao.AlumnoDAO;
 import com.mycompany.paneladministracion.dao.ApartadoDAO;
+import com.mycompany.paneladministracion.dao.BloqueoDAO;
+import com.mycompany.paneladministracion.dao.CarreraDAO;
 import com.mycompany.paneladministracion.dao.ComputadoraDAO;
-import com.mycompany.paneladministracion.dtos.AlumnoBloqueadoDTO;
-import com.mycompany.paneladministracion.dtos.ApartadoDTO;
-import com.mycompany.paneladministracion.dtos.ComputadoraDTO;
+import com.mycompany.paneladministracion.dao.InstitutoDAO;
+import com.mycompany.paneladministracion.dao.LaboratorioDAO;
+import com.mycompany.paneladministracion.dao.SoftwareDAO;
+import com.mycompany.paneladministracion.gui.VentanaPrincipal;
+import com.mycompany.paneladministracion.negocio.AdminNegocio;
+import javax.swing.SwingUtilities;
+import javax.swing.UIManager;
+import persistencia.ConexionBD;
+import persistencia.DatosIniciales;
+import persistencia.IConexionBD;
 
 /**
  *
@@ -18,42 +27,33 @@ import com.mycompany.paneladministracion.dtos.ComputadoraDTO;
 public class PanelAdministracion {
 
     public static void main(String[] args) {
-        System.out.println("=== Panel de Administración ===\n");
-
-        AlumnoDAO alumnoDAO = new AlumnoDAO();
-        ComputadoraDAO computadoraDAO = new ComputadoraDAO();
-        ApartadoDAO apartadoDAO = new ApartadoDAO();
-
-        // 1. Mostrar lista de alumnos bloqueados
-        System.out.println("1) Alumnos bloqueados:");
-        for (AlumnoBloqueadoDTO alumno : alumnoDAO.listarAlumnosBloqueados()) {
-            System.out.println("   " + alumno);
+        try {
+            UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
+        } catch (Exception ignored) {
         }
 
-        // 2. Bloquear y desbloquear alumnos
-        System.out.println("\n2) Bloquear alumno 1 y desbloquear alumno 2:");
-        alumnoDAO.bloquearAlumno(1);
-        alumnoDAO.desbloquearAlumno(2);
-        for (AlumnoBloqueadoDTO alumno : alumnoDAO.listarAlumnosBloqueados()) {
-            System.out.println("   " + alumno);
-        }
+        SwingUtilities.invokeLater(() -> {
+            IConexionBD conexion = new ConexionBD();
 
-        // 3. Mostrar los apartados de computadoras
-        System.out.println("\n3) Apartados de computadoras:");
-        for (ApartadoDTO apartado : apartadoDAO.mostrarApartados()) {
-            System.out.println("   " + apartado);
-        }
+            // Sembrar catálogo del ITSON (unidades y carreras) si la BD está vacía
+            new DatosIniciales(conexion).insertar();
 
-        // 4. Mostrar computadoras y habilitar / deshabilitar una PC
-        System.out.println("\n4) Computadoras:");
-        for (ComputadoraDTO computadora : computadoraDAO.listarComputadoras()) {
-            System.out.println("   " + computadora);
-        }
-        System.out.println("\n   Habilitar PC-02 y deshabilitar PC-01:");
-        computadoraDAO.habilitarComputadora(2);
-        computadoraDAO.deshabilitarComputadora(1);
-        for (ComputadoraDTO computadora : computadoraDAO.listarComputadoras()) {
-            System.out.println("   " + computadora);
-        }
+            // Capa de persistencia (DAOs)
+            AlumnoDAO alumnoDAO = new AlumnoDAO(conexion);
+            ComputadoraDAO computadoraDAO = new ComputadoraDAO(conexion);
+            CarreraDAO carreraDAO = new CarreraDAO(conexion);
+            LaboratorioDAO laboratorioDAO = new LaboratorioDAO(conexion);
+            InstitutoDAO institutoDAO = new InstitutoDAO(conexion);
+            SoftwareDAO softwareDAO = new SoftwareDAO(conexion);
+            BloqueoDAO bloqueoDAO = new BloqueoDAO(conexion);
+            ApartadoDAO apartadoDAO = new ApartadoDAO(conexion);
+
+            // Capa de negocio (validaciones, encriptación, notificación)
+            AdminNegocio negocio = new AdminNegocio(alumnoDAO, computadoraDAO, carreraDAO,
+                    laboratorioDAO, institutoDAO, softwareDAO, bloqueoDAO, apartadoDAO);
+
+            // Interfaz gráfica
+            new VentanaPrincipal(negocio).setVisible(true);
+        });
     }
 }

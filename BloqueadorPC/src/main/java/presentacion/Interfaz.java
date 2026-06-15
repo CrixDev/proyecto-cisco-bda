@@ -488,13 +488,14 @@ public class Interfaz extends JFrame {
         titulo.setForeground(TEXTO_DARK);
         titulo.setAlignmentX(Component.LEFT_ALIGNMENT);
 
-        JLabel sub = new JLabel("Hola, " + (sesionDTO != null ? sesionDTO.getNombreCompleto() : "alumno")
-                + ". Ingresa tu contraseña para desbloquear este equipo.");
+        JLabel sub = new JLabel("<html>Hola, " + (sesionDTO != null ? sesionDTO.getNombreCompleto() : "alumno")
+                + ". Ingresa tu contraseña para desbloquear este equipo.<br>"
+                + "Si eres personal del laboratorio, usa la <b>contraseña maestra</b>.</html>");
         sub.setFont(new Font("SansSerif", Font.PLAIN, 13));
         sub.setForeground(TEXTO_MED);
         sub.setAlignmentX(Component.LEFT_ALIGNMENT);
 
-        JLabel fieldLabel = new JLabel("CONTRASEÑA DEL ALUMNO");
+        JLabel fieldLabel = new JLabel("CONTRASEÑA");
         fieldLabel.setFont(new Font("SansSerif", Font.BOLD, 10));
         fieldLabel.setForeground(TEXTO_MED);
         fieldLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
@@ -514,65 +515,25 @@ public class Interfaz extends JFrame {
         JPanel footer = new JPanel(new BorderLayout());
         footer.setBackground(BLANCO);
         footer.setAlignmentX(Component.LEFT_ALIGNMENT);
-        footer.setMaximumSize(new Dimension(Integer.MAX_VALUE, 40));
+        footer.setMaximumSize(new Dimension(Integer.MAX_VALUE, 44));
 
-        JLabel hint = new JLabel("Paso 3 de 4");
-        hint.setFont(new Font("SansSerif", Font.PLAIN, 12));
-        hint.setForeground(TEXTO_LIGHT);
-
+        JButton maestra = roundButton("Soy personal 🔑", NARANJA, BLANCO);
         JButton desbloquear = roundButton("Desbloquear 🔓", VERDE, BLANCO);
 
-        ActionListener accion = e -> {
-            String pass = new String(passField.getPassword()).trim();
-            if (pass.isEmpty()) {
-                styleBorderField(passField, ROJO);
-                errorLabel.setText("Ingresa tu contraseña.");
-                return;
-            }
+        // Desbloqueo del alumno (Enter en el campo y botón verde)
+        ActionListener accionAlumno = e ->
+                procesarDesbloqueo(false, new String(passField.getPassword()).trim(),
+                        desbloquear, maestra, passField, errorLabel);
+        // Desbloqueo del personal con contraseña maestra
+        ActionListener accionMaestra = e ->
+                procesarDesbloqueo(true, new String(passField.getPassword()).trim(),
+                        desbloquear, maestra, passField, errorLabel);
 
-            desbloquear.setEnabled(false);
-            desbloquear.setText("Verificando...");
+        desbloquear.addActionListener(accionAlumno);
+        passField.addActionListener(accionAlumno);
+        maestra.addActionListener(accionMaestra);
 
-            SwingWorker<Boolean, Void> worker = new SwingWorker<>() {
-                String errorMsg = null;
-
-                @Override
-                protected Boolean doInBackground() {
-                    try {
-                        return bloqueoNegocio.validarContrasena(sesionDTO.getIdAlumno(), pass);
-                    } catch (NegocioException ex) {
-                        errorMsg = ex.getMessage();
-                        return false;
-                    }
-                }
-
-                @Override
-                protected void done() {
-                    boolean correcto;
-                    try {
-                        correcto = get();
-                    } catch (Exception ex) {
-                        correcto = false;
-                    }
-
-                    if (correcto) {
-                        mostrarPaso(4);
-                    } else {
-                        desbloquear.setEnabled(true);
-                        desbloquear.setText("Desbloquear 🔓");
-                        styleBorderField(passField, ROJO);
-                        errorLabel.setText(errorMsg != null ? errorMsg : "Contraseña incorrecta. Intenta de nuevo.");
-                        passField.setText("");
-                    }
-                }
-            };
-            worker.execute();
-        };
-
-        desbloquear.addActionListener(accion);
-        passField.addActionListener(accion);
-
-        footer.add(hint, BorderLayout.WEST);
+        footer.add(maestra, BorderLayout.WEST);
         footer.add(desbloquear, BorderLayout.EAST);
 
         p.add(icono);
@@ -590,6 +551,64 @@ public class Interfaz extends JFrame {
         p.add(footer);
 
         return p;
+    }
+
+    /**
+     * Valida la contraseña (de alumno o maestra) y, si es correcta, pasa al Paso 4.
+     */
+    private void procesarDesbloqueo(boolean maestra, String pass, JButton btnAlumno, JButton btnMaestra,
+            JPasswordField passField, JLabel errorLabel) {
+        if (pass.isEmpty()) {
+            styleBorderField(passField, ROJO);
+            errorLabel.setText(maestra ? "Ingresa la contraseña maestra." : "Ingresa tu contraseña.");
+            return;
+        }
+
+        btnAlumno.setEnabled(false);
+        btnMaestra.setEnabled(false);
+        final JButton activo = maestra ? btnMaestra : btnAlumno;
+        final String textoOriginal = activo.getText();
+        activo.setText("Verificando...");
+
+        SwingWorker<Boolean, Void> worker = new SwingWorker<>() {
+            String errorMsg = null;
+
+            @Override
+            protected Boolean doInBackground() {
+                try {
+                    if (maestra) {
+                        return bloqueoNegocio.validarContrasenaMaestra(ubicacionDTO.getIdLaboratorio(), pass);
+                    }
+                    return bloqueoNegocio.validarContrasena(sesionDTO.getIdAlumno(), pass);
+                } catch (NegocioException ex) {
+                    errorMsg = ex.getMessage();
+                    return false;
+                }
+            }
+
+            @Override
+            protected void done() {
+                boolean correcto;
+                try {
+                    correcto = get();
+                } catch (Exception ex) {
+                    correcto = false;
+                }
+
+                if (correcto) {
+                    mostrarPaso(4);
+                } else {
+                    btnAlumno.setEnabled(true);
+                    btnMaestra.setEnabled(true);
+                    activo.setText(textoOriginal);
+                    styleBorderField(passField, ROJO);
+                    errorLabel.setText(errorMsg != null ? errorMsg
+                            : (maestra ? "Contraseña maestra incorrecta." : "Contraseña incorrecta. Intenta de nuevo."));
+                    passField.setText("");
+                }
+            }
+        };
+        worker.execute();
     }
 
     // ══════════════════════════════════════════

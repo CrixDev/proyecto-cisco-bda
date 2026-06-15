@@ -11,6 +11,7 @@ import entidad.Computadora;
 import entidad.Laboratorio;
 import persistencia.IBloqueoDAO;
 import persistencia.PersistenciaException;
+import util.Encriptador;
 
 /**
  *
@@ -67,9 +68,27 @@ public class BloqueoNegocio implements IBloqueoNegocio {
             if (alumno == null) {
                 throw new NegocioException("No se encontró información del alumno.");
             }
-            return contrasena.trim().equals(alumno.getContrasena());
+            // La contraseña se guarda encriptada (SHA-256); se compara por hash.
+            return Encriptador.coincide(contrasena, alumno.getContrasena());
         } catch (PersistenciaException e) {
             throw new NegocioException("Error al validar la contraseña.", e);
+        }
+    }
+
+    @Override
+    public boolean validarContrasenaMaestra(int idLaboratorio, String contrasena) throws NegocioException {
+        if (contrasena == null || contrasena.isBlank()) {
+            throw new NegocioException("Debes ingresar la contraseña maestra.");
+        }
+        try {
+            Laboratorio lab = bloqueoDAO.obtenerLaboratorio(idLaboratorio);
+            if (lab == null) {
+                throw new NegocioException("No se encontró información del laboratorio.");
+            }
+            // La contraseña maestra se guarda encriptada (SHA-256); se compara por hash.
+            return Encriptador.coincide(contrasena, lab.getContrasenaMaestra());
+        } catch (PersistenciaException e) {
+            throw new NegocioException("Error al validar la contraseña maestra.", e);
         }
     }
 

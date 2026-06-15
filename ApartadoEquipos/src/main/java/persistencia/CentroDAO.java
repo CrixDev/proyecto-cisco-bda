@@ -7,6 +7,7 @@ package persistencia;
 import entidad.Instituto;
 import entidad.Laboratorio;
 import java.sql.*;
+import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -22,6 +23,7 @@ public class CentroDAO {
         List<Laboratorio> lista = new ArrayList<>();
         String sql = """
             SELECT l.id_laboratorio, l.nombre AS lab_nombre, l.contrasena_maestra,
+                   l.hora_inicio, l.hora_fin,
                    i.id_instituto, i.nombre_oficial, i.nombre_abreviado
             FROM Laboratorios l
             INNER JOIN Institutos i ON l.id_instituto = i.id_instituto
@@ -42,6 +44,8 @@ public class CentroDAO {
                 lab.setId(rs.getInt("id_laboratorio"));
                 lab.setNombre(rs.getString("lab_nombre"));
                 lab.setContrasenaMaestra(rs.getString("contrasena_maestra"));
+                lab.setHoraInicio(rs.getObject("hora_inicio", LocalTime.class));
+                lab.setHoraFin(rs.getObject("hora_fin", LocalTime.class));
                 lab.setInstituto(inst);
 
                 lista.add(lab);

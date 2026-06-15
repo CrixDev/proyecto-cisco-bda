@@ -546,8 +546,20 @@ public class Interfaz extends JFrame {
         JPanel resBox = infoBox("RESUMEN DE RESERVACIÓN");
         addSummaryRow(resBox, "Estudiante", alumnoDTO.getNombreCompleto());
         addSummaryRow(resBox, "Carrera", alumnoDTO.getCarrera());
-        addSummaryRow(resBox, "Ubicación", "Laboratorio A");
-        addSummaryRow(resBox, "Tiempo Rest.", "2 horas");
+
+        String ubicacion;
+        try {
+            ubicacion = apartadoNegocio.obtenerNombreLaboratorio();
+        } catch (NegocioException ex) {
+            ubicacion = "Laboratorio";
+        }
+        addSummaryRow(resBox, "Ubicación", ubicacion);
+
+        int restante = alumnoDTO.getTiempoRestanteMinutos();
+        String tiempoTxt = (restante >= 60)
+                ? (restante / 60) + " h " + (restante % 60) + " min"
+                : restante + " min";
+        addSummaryRow(resBox, "Tiempo Rest.", tiempoTxt);
 
         cols.add(swBox); cols.add(resBox);
 

@@ -16,7 +16,7 @@ public class ConexionBD implements IConexionBD {
 
     private static final String URL = "jdbc:mysql://localhost:3306/CISCOBDA?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true";
     private static final String USER = "root";
-    private static final String PASSWORD = "quesadilla9";
+    private static final String PASSWORD = "Cedm.12345";
 
     static {
         try {
