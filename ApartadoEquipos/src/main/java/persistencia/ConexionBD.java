@@ -11,9 +11,9 @@ import java.sql.SQLException;
 public class ConexionBD implements IConexionBD {
 
     // Configura aquí el puerto, usuario y contraseña de tu servidor MySQL local
-    private static final String URL = "jdbc:mysql://localhost:3306/CISCO?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true";
+    private static final String URL = "jdbc:mysql://localhost:3306/CISCOBDA?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true";
     private static final String USER = "root"; 
-    private static final String PASSWORD = "MySQL2025!"; 
+    private static final String PASSWORD = "root"; 
 
     static {
         try {
