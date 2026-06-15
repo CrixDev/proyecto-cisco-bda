@@ -11,6 +11,6 @@ package com.mycompany.apartadoequipos;
 public class ApartadoEquipos {
 
     public static void main(String[] args) {
-        System.out.println("Sistema de Apartado de Equipos");
+        System.out.println("Sistema de Apartado de Equaipos");
     }
 }
