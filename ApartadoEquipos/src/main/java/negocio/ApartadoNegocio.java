@@ -31,29 +31,31 @@ public class ApartadoNegocio implements IApartadoNegocio {
         try {
             Laboratorio centro = centroDAO.obtenerPrimero();
             if (centro == null) throw new NegocioException("No hay centros de laboratorio registrados.");
-
+    
             List<Computadora> computadoras = apartadoDAO.obtenerComputadorasPorCentro((long) centro.getId());
             List<ComputadoraDTO> resultado = new ArrayList<>();
-
+    
+            // ── ESTE ES EL CICLO "FOR" ──
             for (Computadora c : computadoras) {
                 ComputadoraDTO dto = new ComputadoraDTO();
                 dto.setId((long) c.getId());
                 dto.setNumeroMaquina(c.getNumeroMaquina());
                 dto.setDireccionIp(c.getDireccionIp());
-
-                if (!c.isDisponible()) {
+    
+                // ── NUEVA LÓGICA DE ESTADOS ADAPTADA A TUS INSERTS ──
+                if ("Deshabilitada".equalsIgnoreCase(c.getEstatus())) {
                     dto.setEstado("DESHABILITADA");
                     dto.setNombreAlumnoActual("Mantenimiento");
-                } else if (!"Disponible".equals(c.getNombreAlumnoActual())) {
+                } else if ("Apartada".equalsIgnoreCase(c.getEstatus()) || !"Disponible".equals(c.getNombreAlumnoActual())) {
                     dto.setEstado("OCUPADA");
-                    dto.setNombreAlumnoActual(c.getNombreAlumnoActual()); 
+                    // Si el LEFT JOIN no trajo alumno pero en MySQL dice 'Apartada', le ponemos "Reservada"
+                    dto.setNombreAlumnoActual("Disponible".equals(c.getNombreAlumnoActual()) ? "Reservada" : c.getNombreAlumnoActual());
                 } else {
                     dto.setEstado("LIBRE");
                     dto.setNombreAlumnoActual("Disponible");
                 }
-
-                // ── ¡NUEVO UPDATE DE CÓDIGO! ──
-                // Mapea la lista de entidades Software a cadenas de texto plano para el DTO de la pantalla
+    
+                // Mapea la lista de software de la base de datos al DTO
                 List<String> listaNombresSoftware = new ArrayList<>();
                 if (c.getSoftware() != null) {
                     for (Software s : c.getSoftware()) {
@@ -61,7 +63,7 @@ public class ApartadoNegocio implements IApartadoNegocio {
                     }
                 }
                 dto.setSoftwareInstalado(listaNombresSoftware);
-
+    
                 resultado.add(dto);
             }
             return resultado;

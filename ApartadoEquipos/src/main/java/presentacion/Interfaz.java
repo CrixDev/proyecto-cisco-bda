@@ -547,7 +547,7 @@ public class Interfaz extends JFrame {
         addSummaryRow(resBox, "Estudiante", alumnoDTO.getNombreCompleto());
         addSummaryRow(resBox, "Carrera", alumnoDTO.getCarrera());
         addSummaryRow(resBox, "Ubicación", "Laboratorio A");
-        addSummaryRow(resBox, "Tiempo Máx", "2 horas");
+        addSummaryRow(resBox, "Tiempo Rest.", "2 horas");
 
         cols.add(swBox); cols.add(resBox);
 
