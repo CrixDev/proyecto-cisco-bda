@@ -22,7 +22,7 @@ public class ApartadoEquipos {
             IConexionBD conexion = new ConexionBD();
 
             // 2. Sembrar datos demo de ITSON si la base de datos está vacía
-            new DatosIniciales(conexion).insertar();
+            //new DatosIniciales(conexion).insertar();
 
             // 3. Instanciar la capa de Persistencia (DAOs)
             IAlumnoDAO alumnoDAO = new AlumnoDAO(conexion);
