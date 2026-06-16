@@ -181,6 +181,16 @@ public class AdminNegocio {
         catch (PersistenciaException e) { throw new NegocioException(e.getMessage(), e); }
     }
 
+    /** Habilita/deshabilita una computadora cambiando únicamente su estatus. */
+    public void cambiarEstatusComputadora(Computadora c, String nuevoEstatus) throws NegocioException {
+        if (c == null) throw new NegocioException("Selecciona un equipo.");
+        if ("Apartada".equalsIgnoreCase(c.getEstatus()))
+            throw new NegocioException("El equipo está ocupado por un apartado activo; cancélalo primero.");
+        c.setEstatus(nuevoEstatus);
+        try { computadoraDAO.actualizar(c); }
+        catch (PersistenciaException e) { throw new NegocioException(e.getMessage(), e); }
+    }
+
     public java.util.Set<Integer> idsSoftwareAsignado(int idComputadora) throws NegocioException {
         try { return computadoraDAO.idsSoftwareAsignado(idComputadora); }
         catch (PersistenciaException e) { throw new NegocioException(e.getMessage(), e); }
@@ -240,6 +250,12 @@ public class AdminNegocio {
     // ───────────────────────── APARTADOS ─────────────────────────
     public List<Apartado> listarApartados() throws NegocioException {
         try { return apartadoDAO.listarTodos(); }
+        catch (PersistenciaException e) { throw new NegocioException(e.getMessage(), e); }
+    }
+
+    /** Cancela un apartado activo y libera la computadora asociada. */
+    public void cancelarApartado(int idPrestamo) throws NegocioException {
+        try { apartadoDAO.cancelar(idPrestamo); }
         catch (PersistenciaException e) { throw new NegocioException(e.getMessage(), e); }
     }
 }

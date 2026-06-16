@@ -58,4 +58,31 @@ public class ApartadoDAO {
         }
         return lista;
     }
+
+    /**
+     * Cancela (finaliza) un apartado activo: marca su fin_prestamo con la fecha
+     * y hora actuales y libera la computadora dejándola 'Disponible'.
+     */
+    public void cancelar(int idPrestamo) throws PersistenciaException {
+        try (Connection con = conexion.crearConexion()) {
+            con.setAutoCommit(false);
+            try (PreparedStatement ps = con.prepareStatement(
+                    "UPDATE Computadoras SET estatus = 'Disponible' "
+                    + "WHERE id_computadora = (SELECT id_computadora FROM Prestamos WHERE id_prestamo = ?);")) {
+                ps.setInt(1, idPrestamo);
+                ps.executeUpdate();
+            }
+            try (PreparedStatement ps = con.prepareStatement(
+                    "UPDATE Prestamos SET fin_prestamo = NOW() WHERE id_prestamo = ? AND fin_prestamo IS NULL;")) {
+                ps.setInt(1, idPrestamo);
+                if (ps.executeUpdate() == 0) {
+                    con.rollback();
+                    throw new PersistenciaException("El apartado ya no está activo.");
+                }
+            }
+            con.commit();
+        } catch (SQLException e) {
+            throw new PersistenciaException("Error al cancelar el apartado: " + e.getMessage());
+        }
+    }
 }

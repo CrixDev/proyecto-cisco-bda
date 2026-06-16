@@ -14,34 +14,50 @@ import com.mycompany.paneladministracion.entidades.Software;
 import com.mycompany.paneladministracion.negocio.AdminNegocio;
 import com.mycompany.paneladministracion.negocio.NegocioException;
 import java.awt.BorderLayout;
+import java.awt.CardLayout;
+import java.awt.Color;
+import java.awt.Component;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
+import java.awt.GridBagConstraints;
+import java.awt.GridBagLayout;
 import java.awt.GridLayout;
+import java.awt.Insets;
+import java.time.Duration;
+import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
+import javax.swing.BorderFactory;
+import javax.swing.Box;
 import javax.swing.BoxLayout;
 import javax.swing.JButton;
 import javax.swing.JCheckBox;
 import javax.swing.JComboBox;
+import javax.swing.JComponent;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JPasswordField;
 import javax.swing.JScrollPane;
-import javax.swing.JTabbedPane;
 import javax.swing.JTable;
 import javax.swing.JTextField;
 import javax.swing.ListSelectionModel;
+import javax.swing.SwingConstants;
+import javax.swing.event.DocumentEvent;
+import javax.swing.event.DocumentListener;
 import javax.swing.table.DefaultTableModel;
 
 /**
- * Ventana principal del Panel de Administración. Reúne en pestañas el CRUD de
- * alumnos, computadoras, laboratorios, carreras y software, además de la
- * gestión de bloqueos y la consulta de apartados.
+ * Ventana principal del Panel de Administración. Presenta un sidebar de
+ * navegación y pantallas tipo tarjeta para gestionar (CRUD) alumnos,
+ * computadoras, laboratorios, carreras y software, además de bloqueos y
+ * apartados.
+ *
+ * @author Cristian Devora
  */
 public class VentanaPrincipal extends JFrame {
 
@@ -51,70 +67,185 @@ public class VentanaPrincipal extends JFrame {
 
     private final AdminNegocio negocio;
 
-    // Tablas y cachés por entidad
-    private DefaultTableModel modeloAlumnos;
+    // Navegación
+    private final CardLayout cards = new CardLayout();
+    private final JPanel content = new JPanel(cards);
+    private final List<UI.NavButton> navButtons = new ArrayList<>();
+
+    // Cachés por entidad
     private List<Alumno> alumnosCache = new ArrayList<>();
-    private DefaultTableModel modeloComputadoras;
     private List<Computadora> computadorasCache = new ArrayList<>();
-    private DefaultTableModel modeloLaboratorios;
-    private List<Laboratorio> laboratoriosCache = new ArrayList<>();
-    private DefaultTableModel modeloCarreras;
-    private List<Carrera> carrerasCache = new ArrayList<>();
-    private DefaultTableModel modeloSoftware;
-    private List<Software> softwareCache = new ArrayList<>();
-    private DefaultTableModel modeloBloqueos;
     private List<Bloqueo> bloqueosCache = new ArrayList<>();
-    private DefaultTableModel modeloApartados;
+
+    // Tablas restantes
+    private DefaultTableModel modeloLaboratorios;
+    private DefaultTableModel modeloCarreras;
+    private DefaultTableModel modeloSoftware;
+    private DefaultTableModel modeloBloqueos;
+
+    // Componentes dinámicos
+    private JPanel alumnosList;
+    private UI.PlaceholderTextField alumnoSearch;
+
+    private JPanel equiposList;
+    private UI.RoundedPanel equiposDetail;
+    private int equipoSeleccionadoId = -1;
+
+    private JPanel apartadosList;
+    private JPanel apartadosHeader;
+    private boolean apartadosSoloActivos = true;
+    private UI.PillButton btnActivos;
+    private UI.PillButton btnTodos;
 
     public VentanaPrincipal(AdminNegocio negocio) {
         this.negocio = negocio;
         setTitle("ITSON · Panel de Administración de Laboratorios");
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        setSize(960, 600);
+        setSize(1120, 700);
+        setMinimumSize(new Dimension(980, 620));
         setLocationRelativeTo(null);
 
-        JTabbedPane tabs = new JTabbedPane();
-        tabs.addTab("Alumnos", buildAlumnosTab());
-        tabs.addTab("Computadoras", buildComputadorasTab());
-        tabs.addTab("Laboratorios", buildLaboratoriosTab());
-        tabs.addTab("Carreras", buildCarrerasTab());
-        tabs.addTab("Software", buildSoftwareTab());
-        tabs.addTab("Bloqueos", buildBloqueosTab());
-        tabs.addTab("Apartados", buildApartadosTab());
-        add(tabs);
+        JPanel root = new JPanel(new BorderLayout());
+        root.setBackground(UI.WINDOW_BG);
+        root.add(buildSidebar(), BorderLayout.WEST);
+
+        content.setBackground(UI.CONTENT_BG);
+        content.add(buildAlumnosPanel(), "ALUMNOS");
+        content.add(buildApartadosPanel(), "APARTADOS");
+        content.add(buildEquiposPanel(), "EQUIPOS");
+        content.add(buildLaboratoriosPanel(), "LABORATORIOS");
+        content.add(buildCarrerasPanel(), "CARRERAS");
+        content.add(buildSoftwarePanel(), "SOFTWARE");
+        content.add(buildBloqueosPanel(), "BLOQUEOS");
+        root.add(content, BorderLayout.CENTER);
+
+        setContentPane(root);
 
         cargarTodo();
+        seleccionarNav("ALUMNOS");
     }
 
     private void cargarTodo() {
+        cargarLaboratorios();
         cargarCarreras();
         cargarSoftware();
-        cargarLaboratorios();
         cargarAlumnos();
         cargarComputadoras();
         cargarBloqueos();
         cargarApartados();
     }
 
-    // ════════════════ utilidades de UI ════════════════
-    private JTable tablaNoEditable(DefaultTableModel modelo) {
-        JTable t = new JTable(modelo) {
-            @Override
-            public boolean isCellEditable(int row, int column) {
-                return false;
-            }
-        };
-        t.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
-        t.setRowHeight(24);
-        return t;
+    // ════════════════════════ SIDEBAR ════════════════════════
+    private JComponent buildSidebar() {
+        UI.GradientPanel side = new UI.GradientPanel(UI.SIDEBAR_TOP, UI.SIDEBAR_BOT);
+        side.setLayout(new BoxLayout(side, BoxLayout.Y_AXIS));
+        side.setPreferredSize(new Dimension(248, 0));
+        side.setBorder(BorderFactory.createEmptyBorder(22, 0, 22, 0));
+
+        // Encabezado de marca
+        JPanel marca = new JPanel(new FlowLayout(FlowLayout.LEFT, 12, 0));
+        marca.setOpaque(false);
+        marca.setBorder(BorderFactory.createEmptyBorder(0, 22, 0, 22));
+        marca.setMaximumSize(new Dimension(Integer.MAX_VALUE, 56));
+        marca.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+        UI.RoundedPanel logo = new UI.RoundedPanel(12, UI.LOGO, null);
+        logo.setLayout(new BorderLayout());
+        logo.setPreferredSize(new Dimension(38, 38));
+        JLabel logoTxt = UI.label("C", UI.FONT_LOGO, Color.WHITE);
+        logoTxt.setHorizontalAlignment(SwingConstants.CENTER);
+        logo.add(logoTxt, BorderLayout.CENTER);
+        marca.add(logo);
+        marca.add(UI.label("Administración", UI.FONT_BIG, Color.WHITE));
+
+        side.add(marca);
+        side.add(UI.vgap(26));
+
+        side.add(navButton("alumnos", "Alumnos", "ALUMNOS"));
+        side.add(UI.vgap(4));
+        side.add(navButton("apartados", "Apartados", "APARTADOS"));
+        side.add(UI.vgap(4));
+        side.add(navButton("equipos", "Equipos", "EQUIPOS"));
+        side.add(UI.vgap(4));
+        side.add(navButton("laboratorios", "Laboratorios", "LABORATORIOS"));
+        side.add(UI.vgap(4));
+        side.add(navButton("carreras", "Carreras", "CARRERAS"));
+        side.add(UI.vgap(4));
+        side.add(navButton("software", "Software", "SOFTWARE"));
+        side.add(UI.vgap(4));
+        side.add(navButton("bloqueos", "Bloqueos", "BLOQUEOS"));
+
+        side.add(Box.createVerticalGlue());
+        return side;
     }
 
-    private JPanel barraBotones(JButton... botones) {
-        JPanel barra = new JPanel(new FlowLayout(FlowLayout.LEFT));
-        for (JButton b : botones) {
-            barra.add(b);
+    private UI.NavButton navButton(String icon, String text, String card) {
+        UI.NavButton b = new UI.NavButton(icon, text);
+        b.addActionListener(e -> {
+            cards.show(content, card);
+            seleccionarNav(card);
+            switch (card) {
+                case "ALUMNOS" -> cargarAlumnos();
+                case "APARTADOS" -> cargarApartados();
+                case "EQUIPOS" -> cargarComputadoras();
+                case "LABORATORIOS" -> cargarLaboratorios();
+                case "CARRERAS" -> cargarCarreras();
+                case "SOFTWARE" -> cargarSoftware();
+                case "BLOQUEOS" -> cargarBloqueos();
+                default -> { }
+            }
+        });
+        b.putClientProperty("card", card);
+        navButtons.add(b);
+        return b;
+    }
+
+    private void seleccionarNav(String card) {
+        for (UI.NavButton b : navButtons) {
+            b.setSelected(card.equals(b.getClientProperty("card")));
         }
-        return barra;
+    }
+
+    // ════════════════════════ utilidades de UI ════════════════════════
+    private JPanel contentPanel() {
+        JPanel p = new JPanel(new BorderLayout(0, 18));
+        p.setBackground(UI.CONTENT_BG);
+        p.setBorder(BorderFactory.createEmptyBorder(28, 34, 28, 34));
+        return p;
+    }
+
+    private JComponent tituloBloque(String titulo, String subtitulo) {
+        JPanel p = new JPanel();
+        p.setOpaque(false);
+        p.setLayout(new BoxLayout(p, BoxLayout.Y_AXIS));
+        JLabel t = UI.label(titulo, UI.FONT_TITLE, UI.TITLE);
+        t.setAlignmentX(Component.LEFT_ALIGNMENT);
+        JLabel s = UI.label(subtitulo, UI.FONT_SUBTITLE, UI.MUTED);
+        s.setAlignmentX(Component.LEFT_ALIGNMENT);
+        p.add(t);
+        p.add(UI.vgap(4));
+        p.add(s);
+        return p;
+    }
+
+    private JPanel header(String titulo, String subtitulo, JComponent acciones) {
+        JPanel h = new JPanel(new BorderLayout());
+        h.setOpaque(false);
+        h.add(tituloBloque(titulo, subtitulo), BorderLayout.WEST);
+        if (acciones != null) {
+            JPanel right = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 0));
+            right.setOpaque(false);
+            right.add(acciones);
+            h.add(right, BorderLayout.EAST);
+        }
+        return h;
+    }
+
+    private JPanel listaVertical() {
+        JPanel l = new JPanel();
+        l.setLayout(new BoxLayout(l, BoxLayout.Y_AXIS));
+        l.setBackground(UI.CONTENT_BG);
+        return l;
     }
 
     private void error(String msg) {
@@ -125,40 +256,149 @@ public class VentanaPrincipal extends JFrame {
         JOptionPane.showMessageDialog(this, msg, "Operación realizada", JOptionPane.INFORMATION_MESSAGE);
     }
 
-    private int filaSeleccionada(JTable tabla) {
-        int row = tabla.getSelectedRow();
-        if (row < 0) {
-            error("Selecciona un registro de la tabla primero.");
-        }
-        return row;
-    }
-
     private boolean confirmar(String msg) {
         return JOptionPane.showConfirmDialog(this, msg, "Confirmar",
                 JOptionPane.YES_NO_OPTION) == JOptionPane.YES_OPTION;
     }
 
+    private static String iniciales(String nombre, String apellido) {
+        StringBuilder sb = new StringBuilder();
+        if (nombre != null && !nombre.isBlank()) sb.append(Character.toUpperCase(nombre.trim().charAt(0)));
+        if (apellido != null && !apellido.isBlank()) sb.append(Character.toUpperCase(apellido.trim().charAt(0)));
+        return sb.length() == 0 ? "?" : sb.toString();
+    }
+
     // ════════════════════════ ALUMNOS ════════════════════════
-    private JPanel buildAlumnosTab() {
-        modeloAlumnos = new DefaultTableModel(
-                new Object[]{"ID", "Nombre", "Apellido", "Estatus", "Carrera", "Bloqueado"}, 0);
-        JTable tabla = tablaNoEditable(modeloAlumnos);
+    private JPanel buildAlumnosPanel() {
+        JPanel root = contentPanel();
 
-        JButton nuevo = new JButton("Nuevo");
-        JButton editar = new JButton("Editar");
-        JButton eliminar = new JButton("Eliminar");
-        JButton refrescar = new JButton("Refrescar");
-
+        UI.PillButton nuevo = UI.solid("+  Nuevo alumno", UI.BLUE, UI.CARD_SEL);
         nuevo.addActionListener(e -> dialogoAlumno(null));
-        editar.addActionListener(e -> {
-            int r = filaSeleccionada(tabla);
-            if (r >= 0) dialogoAlumno(alumnosCache.get(r));
+
+        // Barra superior (título + búsqueda)
+        JPanel norte = new JPanel();
+        norte.setOpaque(false);
+        norte.setLayout(new BoxLayout(norte, BoxLayout.Y_AXIS));
+        JPanel head = header("Alumnos", "Bloquea o desbloquea el acceso de los alumnos al sistema.", nuevo);
+        head.setAlignmentX(Component.LEFT_ALIGNMENT);
+        norte.add(head);
+        norte.add(UI.vgap(18));
+
+        UI.RoundedPanel buscador = new UI.RoundedPanel(14, UI.SEARCH_BG, UI.CARD_BORDER);
+        buscador.setLayout(new BorderLayout(8, 0));
+        buscador.setBorder(BorderFactory.createEmptyBorder(0, 14, 0, 14));
+        buscador.setMaximumSize(new Dimension(Integer.MAX_VALUE, 48));
+        buscador.setPreferredSize(new Dimension(10, 48));
+        buscador.setAlignmentX(Component.LEFT_ALIGNMENT);
+        JComponent lupa = new JComponent() {
+            @Override protected void paintComponent(java.awt.Graphics g) {
+                UI.Icons.paint(UI.smooth(g), "search", 0, getHeight() / 2 - 9, 18, UI.MUTED);
+            }
+        };
+        lupa.setPreferredSize(new Dimension(20, 20));
+        buscador.add(lupa, BorderLayout.WEST);
+        alumnoSearch = new UI.PlaceholderTextField("Buscar alumno...");
+        alumnoSearch.getDocument().addDocumentListener(new DocumentListener() {
+            @Override public void insertUpdate(DocumentEvent e) { renderAlumnos(); }
+            @Override public void removeUpdate(DocumentEvent e) { renderAlumnos(); }
+            @Override public void changedUpdate(DocumentEvent e) { renderAlumnos(); }
         });
+        buscador.add(alumnoSearch, BorderLayout.CENTER);
+        norte.add(buscador);
+
+        root.add(norte, BorderLayout.NORTH);
+
+        alumnosList = listaVertical();
+        root.add(UI.scroll(alumnosList), BorderLayout.CENTER);
+        return root;
+    }
+
+    private void cargarAlumnos() {
+        try {
+            alumnosCache = negocio.listarAlumnos();
+            renderAlumnos();
+            cargarBloqueos();
+        } catch (NegocioException ex) {
+            error(ex.getMessage());
+        }
+    }
+
+    private void renderAlumnos() {
+        if (alumnosList == null) return;
+        alumnosList.removeAll();
+        String q = alumnoSearch == null ? "" : alumnoSearch.getText().trim().toLowerCase();
+        boolean alguno = false;
+        for (Alumno a : alumnosCache) {
+            String idFmt = String.format("%011d", a.getId());
+            if (!q.isEmpty()
+                    && !a.getNombreCompleto().toLowerCase().contains(q)
+                    && !idFmt.contains(q)
+                    && !String.valueOf(a.getId()).contains(q)) {
+                continue;
+            }
+            alumnosList.add(tarjetaAlumno(a, idFmt));
+            alumnosList.add(UI.vgap(12));
+            alguno = true;
+        }
+        if (!alguno) {
+            JLabel vacio = UI.label("No hay alumnos que coincidan con la búsqueda.", UI.FONT_SUBTITLE, UI.MUTED);
+            vacio.setAlignmentX(Component.LEFT_ALIGNMENT);
+            vacio.setBorder(BorderFactory.createEmptyBorder(12, 4, 0, 0));
+            alumnosList.add(vacio);
+        }
+        alumnosList.add(Box.createVerticalGlue());
+        alumnosList.revalidate();
+        alumnosList.repaint();
+    }
+
+    private JComponent tarjetaAlumno(Alumno a, String idFmt) {
+        UI.RoundedPanel card = UI.card();
+        card.setLayout(new BorderLayout(14, 0));
+        card.setBorder(BorderFactory.createEmptyBorder(12, 16, 12, 16));
+        card.setMaximumSize(new Dimension(Integer.MAX_VALUE, 84));
+        card.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+        // Izquierda: avatar + datos
+        JPanel izq = new JPanel(new FlowLayout(FlowLayout.LEFT, 14, 0));
+        izq.setOpaque(false);
+        izq.add(new UI.Avatar(iniciales(a.getNombre(), a.getApellido())));
+        JPanel datos = new JPanel();
+        datos.setOpaque(false);
+        datos.setLayout(new BoxLayout(datos, BoxLayout.Y_AXIS));
+        JLabel nom = UI.label(a.getNombreCompleto(), UI.FONT_CARD_TITLE, UI.TITLE);
+        nom.setAlignmentX(Component.LEFT_ALIGNMENT);
+        JLabel id = UI.label("ID " + idFmt, UI.FONT_CARD_SUB, UI.MUTED);
+        id.setAlignmentX(Component.LEFT_ALIGNMENT);
+        datos.add(Box.createVerticalGlue());
+        datos.add(nom);
+        datos.add(UI.vgap(3));
+        datos.add(id);
+        datos.add(Box.createVerticalGlue());
+        izq.add(datos);
+        card.add(izq, BorderLayout.WEST);
+
+        // Derecha: estado + acciones
+        JPanel der = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 0));
+        der.setOpaque(false);
+        if (a.isBloqueado()) {
+            der.add(new UI.Badge("Bloqueado", UI.RED_BG, UI.RED, true));
+            UI.PillButton desbloq = UI.solid("Desbloquear", UI.BTN_GREEN, UI.BTN_GREEN_HV);
+            desbloq.addActionListener(e -> desbloquearAlumnoAccion(a));
+            der.add(desbloq);
+        } else {
+            der.add(new UI.Badge("Activo", UI.GREEN_BG, UI.GREEN, true));
+            UI.PillButton bloq = UI.outline("Bloquear", UI.RED, UI.RED_BG);
+            bloq.addActionListener(e -> dialogoBloquearAlumno(a));
+            der.add(bloq);
+        }
+        UI.PillButton editar = UI.outline("Editar", UI.GRAY_TEXT, UI.SEARCH_BG).small();
+        editar.setForeground(UI.GRAY_TEXT);
+        editar.addActionListener(e -> dialogoAlumno(a));
+        UI.PillButton eliminar = UI.outline("Eliminar", UI.RED, UI.RED_BG).small();
         eliminar.addActionListener(e -> {
-            int r = filaSeleccionada(tabla);
-            if (r >= 0 && confirmar("¿Eliminar al alumno seleccionado?")) {
+            if (confirmar("¿Eliminar al alumno \"" + a.getNombreCompleto() + "\"?")) {
                 try {
-                    negocio.eliminarAlumno(alumnosCache.get(r).getId());
+                    negocio.eliminarAlumno(a.getId());
                     info("Alumno eliminado.");
                     cargarAlumnos();
                 } catch (NegocioException ex) {
@@ -166,24 +406,19 @@ public class VentanaPrincipal extends JFrame {
                 }
             }
         });
-        refrescar.addActionListener(e -> cargarAlumnos());
+        der.add(editar);
+        der.add(eliminar);
+        card.add(der, BorderLayout.EAST);
 
-        JPanel panel = new JPanel(new BorderLayout());
-        panel.add(barraBotones(nuevo, editar, eliminar, refrescar), BorderLayout.NORTH);
-        panel.add(new JScrollPane(tabla), BorderLayout.CENTER);
-        return panel;
+        return card;
     }
 
-    private void cargarAlumnos() {
+    private void desbloquearAlumnoAccion(Alumno a) {
+        if (!confirmar("¿Desbloquear a \"" + a.getNombreCompleto() + "\"?")) return;
         try {
-            alumnosCache = negocio.listarAlumnos();
-            modeloAlumnos.setRowCount(0);
-            for (Alumno a : alumnosCache) {
-                modeloAlumnos.addRow(new Object[]{
-                    a.getId(), a.getNombre(), a.getApellido(), a.getEstatusInscripcion(),
-                    a.getCarreraNombre(), a.isBloqueado() ? "Sí" : "No"});
-            }
-            cargarBloqueos();
+            negocio.desbloquearAlumno(a.getId());
+            info("Alumno desbloqueado.");
+            cargarAlumnos();
         } catch (NegocioException ex) {
             error(ex.getMessage());
         }
@@ -252,56 +487,420 @@ public class VentanaPrincipal extends JFrame {
         }
     }
 
-    // ════════════════════════ COMPUTADORAS ════════════════════════
-    private JPanel buildComputadorasTab() {
-        modeloComputadoras = new DefaultTableModel(
-                new Object[]{"ID", "N° Máquina", "IP", "Estatus", "Tipo", "Laboratorio"}, 0);
-        JTable tabla = tablaNoEditable(modeloComputadoras);
+    /** Bloqueo directo de un alumno desde su tarjeta (pide fecha y motivo). */
+    private void dialogoBloquearAlumno(Alumno a) {
+        DatePicker dpFecha = new DatePicker();
+        dpFecha.setDateToToday();
+        JTextField txtMotivo = new JTextField();
 
-        JButton nuevo = new JButton("Nueva");
-        JButton editar = new JButton("Editar");
-        JButton eliminar = new JButton("Eliminar");
-        JButton software = new JButton("Software…");
-        JButton refrescar = new JButton("Refrescar");
+        JPanel form = new JPanel(new GridLayout(0, 2, 6, 6));
+        form.add(new JLabel("Alumno:")); form.add(new JLabel(a.getNombreCompleto()));
+        form.add(new JLabel("Fecha de bloqueo:")); form.add(dpFecha);
+        form.add(new JLabel("Motivo:")); form.add(txtMotivo);
+        form.setPreferredSize(new Dimension(440, 130));
 
-        nuevo.addActionListener(e -> dialogoComputadora(null));
+        while (true) {
+            int op = JOptionPane.showConfirmDialog(this, form, "Bloquear alumno", JOptionPane.OK_CANCEL_OPTION);
+            if (op != JOptionPane.OK_OPTION) return;
+            try {
+                String notificacion = negocio.bloquearAlumno(a, dpFecha.getDate(), txtMotivo.getText());
+                JOptionPane.showMessageDialog(this, "Bloqueo registrado.\n\n" + notificacion,
+                        "Bloqueo y notificación", JOptionPane.INFORMATION_MESSAGE);
+                cargarAlumnos();
+                return;
+            } catch (NegocioException ex) {
+                error(ex.getMessage());
+            }
+        }
+    }
+
+    // ════════════════════════ APARTADOS ════════════════════════
+    private JPanel buildApartadosPanel() {
+        JPanel root = contentPanel();
+
+        btnActivos = UI.solid("Activos", UI.BLUE, UI.CARD_SEL);
+        btnTodos = UI.outline("Historial", UI.GRAY_TEXT, UI.SEARCH_BG);
+        btnTodos.setForeground(UI.GRAY_TEXT);
+        btnActivos.addActionListener(e -> { apartadosSoloActivos = true; actualizarToggleApartados(); cargarApartados(); });
+        btnTodos.addActionListener(e -> { apartadosSoloActivos = false; actualizarToggleApartados(); cargarApartados(); });
+        JPanel toggle = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 0));
+        toggle.setOpaque(false);
+        toggle.add(btnActivos);
+        toggle.add(btnTodos);
+
+        JPanel norte = new JPanel();
+        norte.setOpaque(false);
+        norte.setLayout(new BoxLayout(norte, BoxLayout.Y_AXIS));
+        JPanel head = header("Apartados activos", "Reservas de equipos en curso. Puedes cancelarlas.", toggle);
+        head.setAlignmentX(Component.LEFT_ALIGNMENT);
+        norte.add(head);
+        norte.add(UI.vgap(16));
+
+        apartadosHeader = new JPanel(new BorderLayout());
+        apartadosHeader.setOpaque(false);
+        apartadosHeader.setBorder(BorderFactory.createMatteBorder(0, 0, 1, 0, UI.CARD_BORDER));
+        apartadosHeader.setMaximumSize(new Dimension(Integer.MAX_VALUE, 34));
+        apartadosHeader.setAlignmentX(Component.LEFT_ALIGNMENT);
+        norte.add(apartadosHeader);
+
+        root.add(norte, BorderLayout.NORTH);
+
+        apartadosList = listaVertical();
+        root.add(UI.scroll(apartadosList), BorderLayout.CENTER);
+        return root;
+    }
+
+    private void actualizarToggleApartados() {
+        if (btnActivos == null) return;
+        if (apartadosSoloActivos) {
+            btnActivos.estilo(UI.BLUE, null, Color.WHITE);
+            btnTodos.estilo(Color.WHITE, UI.GRAY_BORDER, UI.GRAY_TEXT);
+        } else {
+            btnActivos.estilo(Color.WHITE, UI.GRAY_BORDER, UI.GRAY_TEXT);
+            btnTodos.estilo(UI.BLUE, null, Color.WHITE);
+        }
+    }
+
+    /** Envuelve el contenido de una celda para que las columnas se alineen entre filas. */
+    private JComponent celda(JComponent inner, boolean right) {
+        JPanel p = new JPanel(new BorderLayout());
+        p.setOpaque(false);
+        p.setMinimumSize(new Dimension(1, 1));
+        p.setPreferredSize(new Dimension(1, inner.getPreferredSize().height));
+        p.add(inner, right ? BorderLayout.EAST : BorderLayout.WEST);
+        return p;
+    }
+
+    private JPanel filaApartado(JComponent c0, JComponent c1, JComponent c2, JComponent c3, boolean header) {
+        JPanel row = new JPanel(new GridBagLayout());
+        row.setOpaque(false);
+        row.setMaximumSize(new Dimension(Integer.MAX_VALUE, header ? 32 : 56));
+        row.setAlignmentX(Component.LEFT_ALIGNMENT);
+        if (!header) {
+            row.setBorder(BorderFactory.createMatteBorder(0, 0, 1, 0, new Color(0xF0, 0xF2, 0xF6)));
+        }
+        GridBagConstraints gc = new GridBagConstraints();
+        gc.gridy = 0;
+        gc.insets = new Insets(0, 2, 0, 8);
+        gc.fill = GridBagConstraints.HORIZONTAL;
+
+        gc.gridx = 0; gc.weightx = 0.40; row.add(celda(c0, false), gc);
+        gc.gridx = 1; gc.weightx = 0.22; row.add(celda(c1, false), gc);
+        gc.gridx = 2; gc.weightx = 0.20; row.add(celda(c2, false), gc);
+        gc.gridx = 3; gc.weightx = 0.18; row.add(celda(c3, true), gc);
+        return row;
+    }
+
+    private void cargarApartados() {
+        if (apartadosList == null) return;
+        try {
+            List<Apartado> todos = negocio.listarApartados();
+
+            apartadosHeader.removeAll();
+            JPanel cols = filaApartado(
+                    UI.label("ALUMNO", UI.FONT_COLHEAD, UI.MUTED),
+                    UI.label("EQUIPO", UI.FONT_COLHEAD, UI.MUTED),
+                    UI.label(apartadosSoloActivos ? "TIEMPO" : "INICIO", UI.FONT_COLHEAD, UI.MUTED),
+                    UI.label(apartadosSoloActivos ? "" : "ESTADO", UI.FONT_COLHEAD, UI.MUTED),
+                    true);
+            apartadosHeader.add(cols, BorderLayout.CENTER);
+            apartadosHeader.revalidate();
+            apartadosHeader.repaint();
+
+            apartadosList.removeAll();
+            boolean alguno = false;
+            for (Apartado ap : todos) {
+                if (apartadosSoloActivos && !ap.isActivo()) continue;
+                apartadosList.add(filaApartado(
+                        UI.label(ap.getAlumnoNombre(), UI.FONT_CARD_TITLE, UI.TITLE),
+                        new UI.Badge("PC " + String.format("%02d", ap.getNumeroMaquina()), UI.BLUE_BG, UI.BLUE, true),
+                        UI.label(tercerCampoApartado(ap), UI.FONT_CARD_SUB, UI.GRAY_TEXT),
+                        cuartoCampoApartado(ap), false));
+                alguno = true;
+            }
+            if (!alguno) {
+                JLabel vacio = UI.label(apartadosSoloActivos
+                        ? "No hay apartados activos en este momento."
+                        : "No hay apartados registrados.", UI.FONT_SUBTITLE, UI.MUTED);
+                vacio.setAlignmentX(Component.LEFT_ALIGNMENT);
+                vacio.setBorder(BorderFactory.createEmptyBorder(14, 4, 0, 0));
+                apartadosList.add(vacio);
+            }
+            apartadosList.add(Box.createVerticalGlue());
+            apartadosList.revalidate();
+            apartadosList.repaint();
+        } catch (NegocioException ex) {
+            error(ex.getMessage());
+        }
+    }
+
+    private String tercerCampoApartado(Apartado ap) {
+        if (apartadosSoloActivos) {
+            if (ap.getInicioPrestamo() == null) return "—";
+            Duration d = Duration.between(ap.getInicioPrestamo(), LocalDateTime.now());
+            if (d.isNegative()) d = Duration.ZERO;
+            long h = d.toHours();
+            long m = d.toMinutes() % 60;
+            return String.format("%02d:%02d", h, m);
+        }
+        return ap.getInicioPrestamo() != null ? ap.getInicioPrestamo().format(F_FECHAHORA) : "";
+    }
+
+    private JComponent cuartoCampoApartado(Apartado ap) {
+        if (apartadosSoloActivos) {
+            UI.PillButton cancelar = UI.outline("Cancelar", UI.RED, UI.RED_BG);
+            cancelar.addActionListener(e -> {
+                if (confirmar("¿Cancelar el apartado de \"" + ap.getAlumnoNombre()
+                        + "\" en la PC " + String.format("%02d", ap.getNumeroMaquina()) + "?")) {
+                    try {
+                        negocio.cancelarApartado(ap.getId());
+                        info("Apartado cancelado y equipo liberado.");
+                        cargarApartados();
+                        cargarComputadoras();
+                    } catch (NegocioException ex) {
+                        error(ex.getMessage());
+                    }
+                }
+            });
+            return cancelar;
+        }
+        if (ap.isActivo()) {
+            return new UI.Badge("Activo", UI.GREEN_BG, UI.GREEN, true);
+        }
+        return UI.label(ap.getFinPrestamo() != null ? ap.getFinPrestamo().format(F_FECHAHORA) : "Finalizado",
+                UI.FONT_CARD_SUB, UI.GRAY_TEXT);
+    }
+
+    // ════════════════════════ EQUIPOS ════════════════════════
+    private JPanel buildEquiposPanel() {
+        JPanel root = contentPanel();
+
+        UI.PillButton nueva = UI.solid("+  Nueva", UI.BLUE, UI.CARD_SEL);
+        nueva.addActionListener(e -> dialogoComputadora(null));
+        UI.PillButton editar = UI.outline("Editar", UI.GRAY_TEXT, UI.SEARCH_BG);
+        editar.setForeground(UI.GRAY_TEXT);
         editar.addActionListener(e -> {
-            int r = filaSeleccionada(tabla);
-            if (r >= 0) dialogoComputadora(computadorasCache.get(r));
+            Computadora c = equipoSeleccionado();
+            if (c != null) dialogoComputadora(c);
         });
+        UI.PillButton software = UI.outline("Software…", UI.BLUE, UI.BLUE_BG);
+        software.addActionListener(e -> {
+            Computadora c = equipoSeleccionado();
+            if (c != null) dialogoSoftwareDeComputadora(c);
+        });
+        UI.PillButton eliminar = UI.outline("Eliminar", UI.RED, UI.RED_BG);
         eliminar.addActionListener(e -> {
-            int r = filaSeleccionada(tabla);
-            if (r >= 0 && confirmar("¿Eliminar la computadora seleccionada?")) {
+            Computadora c = equipoSeleccionado();
+            if (c != null && confirmar("¿Eliminar la PC " + String.format("%02d", c.getNumeroMaquina()) + "?")) {
                 try {
-                    negocio.eliminarComputadora(computadorasCache.get(r).getId());
+                    negocio.eliminarComputadora(c.getId());
                     info("Computadora eliminada.");
+                    equipoSeleccionadoId = -1;
                     cargarComputadoras();
                 } catch (NegocioException ex) {
                     error(ex.getMessage());
                 }
             }
         });
-        software.addActionListener(e -> {
-            int r = filaSeleccionada(tabla);
-            if (r >= 0) dialogoSoftwareDeComputadora(computadorasCache.get(r));
-        });
-        refrescar.addActionListener(e -> cargarComputadoras());
+        JPanel acciones = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 0));
+        acciones.setOpaque(false);
+        acciones.add(nueva);
+        acciones.add(editar);
+        acciones.add(software);
+        acciones.add(eliminar);
 
-        JPanel panel = new JPanel(new BorderLayout());
-        panel.add(barraBotones(nuevo, editar, eliminar, software, refrescar), BorderLayout.NORTH);
-        panel.add(new JScrollPane(tabla), BorderLayout.CENTER);
-        return panel;
+        JPanel head = header("Equipos",
+                "Habilita o deshabilita equipos para el apartado. Selecciona uno para ver el detalle.", acciones);
+        root.add(head, BorderLayout.NORTH);
+
+        equiposList = listaVertical();
+        JScrollPane scroll = UI.scroll(equiposList);
+
+        equiposDetail = new UI.RoundedPanel(16, UI.DETAIL_BG, UI.CARD_BORDER);
+        equiposDetail.setLayout(new BorderLayout());
+
+        JPanel centro = new JPanel(new BorderLayout(20, 0));
+        centro.setOpaque(false);
+        centro.add(scroll, BorderLayout.CENTER);
+        JPanel derWrap = new JPanel(new BorderLayout());
+        derWrap.setOpaque(false);
+        derWrap.setPreferredSize(new Dimension(300, 0));
+        derWrap.add(equiposDetail, BorderLayout.NORTH);
+        centro.add(derWrap, BorderLayout.EAST);
+
+        root.add(centro, BorderLayout.CENTER);
+        return root;
+    }
+
+    private Computadora equipoSeleccionado() {
+        for (Computadora c : computadorasCache) {
+            if (c.getId() == equipoSeleccionadoId) return c;
+        }
+        error("Selecciona un equipo de la lista primero.");
+        return null;
     }
 
     private void cargarComputadoras() {
         try {
             computadorasCache = negocio.listarComputadoras();
-            modeloComputadoras.setRowCount(0);
+            if (equiposList == null) return;
+            boolean existe = false;
             for (Computadora c : computadorasCache) {
-                modeloComputadoras.addRow(new Object[]{
-                    c.getId(), c.getNumeroMaquina(), c.getDireccionIp(), c.getEstatus(),
-                    c.getTipoComputadora(), c.getLaboratorioNombre()});
+                if (c.getId() == equipoSeleccionadoId) { existe = true; break; }
             }
+            if (!existe && !computadorasCache.isEmpty()) {
+                equipoSeleccionadoId = computadorasCache.get(0).getId();
+            } else if (computadorasCache.isEmpty()) {
+                equipoSeleccionadoId = -1;
+            }
+            renderEquipos();
+        } catch (NegocioException ex) {
+            error(ex.getMessage());
+        }
+    }
+
+    private void renderEquipos() {
+        equiposList.removeAll();
+        for (Computadora c : computadorasCache) {
+            equiposList.add(tarjetaEquipo(c));
+            equiposList.add(UI.vgap(10));
+        }
+        if (computadorasCache.isEmpty()) {
+            JLabel vacio = UI.label("No hay equipos registrados. Usa “Nueva” para agregar uno.", UI.FONT_SUBTITLE, UI.MUTED);
+            vacio.setAlignmentX(Component.LEFT_ALIGNMENT);
+            equiposList.add(vacio);
+        }
+        equiposList.add(Box.createVerticalGlue());
+        equiposList.revalidate();
+        equiposList.repaint();
+        renderDetalleEquipo();
+    }
+
+    private JComponent tarjetaEquipo(Computadora c) {
+        boolean sel = c.getId() == equipoSeleccionadoId;
+        UI.RoundedPanel card = new UI.RoundedPanel(14, UI.CARD_BG, sel ? UI.CARD_SEL : UI.CARD_BORDER);
+        card.setBorderWidth(sel ? 2f : 1f);
+        card.setLayout(new BorderLayout(12, 0));
+        card.setBorder(BorderFactory.createEmptyBorder(14, 16, 14, 16));
+        card.setMaximumSize(new Dimension(Integer.MAX_VALUE, 70));
+        card.setAlignmentX(Component.LEFT_ALIGNMENT);
+        card.setCursor(java.awt.Cursor.getPredefinedCursor(java.awt.Cursor.HAND_CURSOR));
+
+        JPanel izq = new JPanel(new FlowLayout(FlowLayout.LEFT, 12, 0));
+        izq.setOpaque(false);
+        JComponent icono = new JComponent() {
+            @Override protected void paintComponent(java.awt.Graphics g) {
+                UI.Icons.paint(UI.smooth(g), "equipos", 0, getHeight() / 2 - 11, 22, UI.BLUE);
+            }
+        };
+        icono.setPreferredSize(new Dimension(26, 26));
+        izq.add(icono);
+        izq.add(UI.label("PC " + String.format("%02d", c.getNumeroMaquina()), UI.FONT_CARD_TITLE, UI.TITLE));
+        card.add(izq, BorderLayout.WEST);
+
+        JPanel der = new JPanel(new FlowLayout(FlowLayout.RIGHT, 0, 0));
+        der.setOpaque(false);
+        der.add(badgeEstatus(c.getEstatus()));
+        card.add(der, BorderLayout.EAST);
+
+        card.addMouseListener(new java.awt.event.MouseAdapter() {
+            @Override public void mousePressed(java.awt.event.MouseEvent e) {
+                equipoSeleccionadoId = c.getId();
+                renderEquipos();
+            }
+        });
+        return card;
+    }
+
+    private UI.Badge badgeEstatus(String estatus) {
+        if ("Deshabilitada".equalsIgnoreCase(estatus)) {
+            return new UI.Badge("Deshabilitada", UI.RED_BG, UI.RED, true);
+        }
+        if ("Apartada".equalsIgnoreCase(estatus)) {
+            return new UI.Badge("Ocupada", UI.ORANGE_BG, UI.ORANGE, true);
+        }
+        return new UI.Badge("Disponible", UI.GREEN_BG, UI.GREEN, true);
+    }
+
+    private void renderDetalleEquipo() {
+        equiposDetail.removeAll();
+        Computadora c = null;
+        for (Computadora x : computadorasCache) {
+            if (x.getId() == equipoSeleccionadoId) { c = x; break; }
+        }
+
+        JPanel cuerpo = new JPanel();
+        cuerpo.setOpaque(false);
+        cuerpo.setLayout(new BoxLayout(cuerpo, BoxLayout.Y_AXIS));
+        cuerpo.setBorder(BorderFactory.createEmptyBorder(22, 22, 22, 22));
+
+        if (c == null) {
+            JLabel ph = UI.label("Selecciona un equipo para ver el detalle.", UI.FONT_SUBTITLE, UI.MUTED);
+            ph.setAlignmentX(Component.LEFT_ALIGNMENT);
+            cuerpo.add(ph);
+            equiposDetail.add(cuerpo, BorderLayout.NORTH);
+            equiposDetail.revalidate();
+            equiposDetail.repaint();
+            return;
+        }
+
+        JLabel titulo = UI.label("Equipo #" + String.format("%02d", c.getNumeroMaquina()), UI.FONT_BIG, UI.TITLE);
+        titulo.setAlignmentX(Component.LEFT_ALIGNMENT);
+        cuerpo.add(titulo);
+        cuerpo.add(UI.vgap(18));
+
+        JLabel lblCentro = UI.label("Centro", UI.FONT_CARD_SUB, UI.MUTED);
+        lblCentro.setAlignmentX(Component.LEFT_ALIGNMENT);
+        cuerpo.add(lblCentro);
+        JLabel centro = UI.label(c.getLaboratorioNombre() != null ? c.getLaboratorioNombre() : "—", UI.FONT_CARD_TITLE, UI.TITLE);
+        centro.setAlignmentX(Component.LEFT_ALIGNMENT);
+        cuerpo.add(UI.vgap(2));
+        cuerpo.add(centro);
+        cuerpo.add(UI.vgap(16));
+
+        JLabel lblEstado = UI.label("Estado", UI.FONT_CARD_SUB, UI.MUTED);
+        lblEstado.setAlignmentX(Component.LEFT_ALIGNMENT);
+        cuerpo.add(lblEstado);
+        cuerpo.add(UI.vgap(4));
+        UI.Badge be = badgeEstatus(c.getEstatus());
+        be.setAlignmentX(Component.LEFT_ALIGNMENT);
+        JPanel badgeWrap = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
+        badgeWrap.setOpaque(false);
+        badgeWrap.setAlignmentX(Component.LEFT_ALIGNMENT);
+        badgeWrap.setMaximumSize(new Dimension(Integer.MAX_VALUE, 30));
+        badgeWrap.add(be);
+        cuerpo.add(badgeWrap);
+        cuerpo.add(UI.vgap(20));
+
+        JButton accion;
+        if ("Apartada".equalsIgnoreCase(c.getEstatus())) {
+            accion = UI.button("Ocupada", UI.SEARCH_BG, UI.GRAY_BORDER, UI.GRAY_TEXT, null);
+            accion.setEnabled(false);
+        } else if ("Deshabilitada".equalsIgnoreCase(c.getEstatus())) {
+            UI.PillButton hab = UI.solid("Habilitar", UI.BTN_GREEN, UI.BTN_GREEN_HV);
+            final Computadora cc = c;
+            hab.addActionListener(e -> cambiarEstatusEquipo(cc, "Disponible"));
+            accion = hab;
+        } else {
+            UI.PillButton des = UI.outline("Deshabilitar", UI.RED, UI.RED_BG);
+            final Computadora cc = c;
+            des.addActionListener(e -> cambiarEstatusEquipo(cc, "Deshabilitada"));
+            accion = des;
+        }
+        accion.setAlignmentX(Component.LEFT_ALIGNMENT);
+        accion.setMaximumSize(new Dimension(Integer.MAX_VALUE, 44));
+        accion.setPreferredSize(new Dimension(240, 44));
+        cuerpo.add(accion);
+
+        equiposDetail.add(cuerpo, BorderLayout.NORTH);
+        equiposDetail.revalidate();
+        equiposDetail.repaint();
+    }
+
+    private void cambiarEstatusEquipo(Computadora c, String nuevoEstatus) {
+        try {
+            negocio.cambiarEstatusComputadora(c, nuevoEstatus);
+            cargarComputadoras();
         } catch (NegocioException ex) {
             error(ex.getMessage());
         }
@@ -368,6 +967,7 @@ public class VentanaPrincipal extends JFrame {
             try {
                 negocio.guardarComputadora(c, esNuevo);
                 info(esNuevo ? "Computadora registrada." : "Computadora actualizada.");
+                if (esNuevo) equipoSeleccionadoId = c.getId();
                 cargarComputadoras();
                 return;
             } catch (NegocioException ex) {
@@ -412,25 +1012,53 @@ public class VentanaPrincipal extends JFrame {
         }
     }
 
-    // ════════════════════════ LABORATORIOS ════════════════════════
-    private JPanel buildLaboratoriosTab() {
-        modeloLaboratorios = new DefaultTableModel(
-                new Object[]{"ID", "Nombre", "Horario", "Unidad"}, 0);
+    // ════════════════════════ Paneles de tabla (Lab/Carrera/Software/Bloqueos) ════════════════════════
+    private JTable tablaNoEditable(DefaultTableModel modelo) {
+        JTable t = new JTable(modelo) {
+            @Override
+            public boolean isCellEditable(int row, int column) {
+                return false;
+            }
+        };
+        t.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
+        UI.styleTable(t);
+        return t;
+    }
+
+    private JPanel panelTabla(String titulo, String subtitulo, JTable tabla, JComponent acciones) {
+        JPanel root = contentPanel();
+        root.add(header(titulo, subtitulo, acciones), BorderLayout.NORTH);
+        UI.RoundedPanel cont = UI.card();
+        cont.setLayout(new BorderLayout());
+        cont.setBorder(BorderFactory.createEmptyBorder(8, 8, 8, 8));
+        JScrollPane sp = new JScrollPane(tabla);
+        sp.setBorder(null);
+        sp.getViewport().setBackground(Color.WHITE);
+        cont.add(sp, BorderLayout.CENTER);
+        root.add(cont, BorderLayout.CENTER);
+        return root;
+    }
+
+    // ──────────── LABORATORIOS ────────────
+    private JPanel buildLaboratoriosPanel() {
+        modeloLaboratorios = new DefaultTableModel(new Object[]{"ID", "Nombre", "Horario", "Unidad"}, 0);
         JTable tabla = tablaNoEditable(modeloLaboratorios);
 
-        JButton nuevo = new JButton("Nuevo");
-        JButton editar = new JButton("Editar");
-        JButton eliminar = new JButton("Eliminar");
-        JButton refrescar = new JButton("Refrescar");
+        UI.PillButton nuevo = UI.solid("+  Nuevo", UI.BLUE, UI.CARD_SEL);
+        UI.PillButton editar = UI.outline("Editar", UI.GRAY_TEXT, UI.SEARCH_BG);
+        editar.setForeground(UI.GRAY_TEXT);
+        UI.PillButton eliminar = UI.outline("Eliminar", UI.RED, UI.RED_BG);
 
         nuevo.addActionListener(e -> dialogoLaboratorio(null));
         editar.addActionListener(e -> {
-            int r = filaSeleccionada(tabla);
-            if (r >= 0) dialogoLaboratorio(laboratoriosCache.get(r));
+            int r = tabla.getSelectedRow();
+            if (r < 0) { error("Selecciona un laboratorio primero."); return; }
+            dialogoLaboratorio(laboratoriosCache.get(r));
         });
         eliminar.addActionListener(e -> {
-            int r = filaSeleccionada(tabla);
-            if (r >= 0 && confirmar("¿Eliminar el laboratorio seleccionado?")) {
+            int r = tabla.getSelectedRow();
+            if (r < 0) { error("Selecciona un laboratorio primero."); return; }
+            if (confirmar("¿Eliminar el laboratorio seleccionado?")) {
                 try {
                     negocio.eliminarLaboratorio(laboratoriosCache.get(r).getId());
                     info("Laboratorio eliminado.");
@@ -440,17 +1068,19 @@ public class VentanaPrincipal extends JFrame {
                 }
             }
         });
-        refrescar.addActionListener(e -> cargarLaboratorios());
 
-        JPanel panel = new JPanel(new BorderLayout());
-        panel.add(barraBotones(nuevo, editar, eliminar, refrescar), BorderLayout.NORTH);
-        panel.add(new JScrollPane(tabla), BorderLayout.CENTER);
-        return panel;
+        JPanel acc = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 0));
+        acc.setOpaque(false);
+        acc.add(nuevo); acc.add(editar); acc.add(eliminar);
+        return panelTabla("Laboratorios", "Centros de cómputo y su horario de servicio.", tabla, acc);
     }
+
+    private List<Laboratorio> laboratoriosCache = new ArrayList<>();
 
     private void cargarLaboratorios() {
         try {
             laboratoriosCache = negocio.listarLaboratorios();
+            if (modeloLaboratorios == null) return;
             modeloLaboratorios.setRowCount(0);
             for (Laboratorio l : laboratoriosCache) {
                 String horario = (l.getHoraInicio() != null ? l.getHoraInicio().format(F_HORA) : "?")
@@ -535,25 +1165,29 @@ public class VentanaPrincipal extends JFrame {
         }
     }
 
-    // ════════════════════════ CARRERAS ════════════════════════
-    private JPanel buildCarrerasTab() {
+    // ──────────── CARRERAS ────────────
+    private List<Carrera> carrerasCache = new ArrayList<>();
+
+    private JPanel buildCarrerasPanel() {
         modeloCarreras = new DefaultTableModel(
                 new Object[]{"ID", "Nombre", "Tiempo límite diario", "Teléfono academia"}, 0);
         JTable tabla = tablaNoEditable(modeloCarreras);
 
-        JButton nuevo = new JButton("Nueva");
-        JButton editar = new JButton("Editar");
-        JButton eliminar = new JButton("Eliminar");
-        JButton refrescar = new JButton("Refrescar");
+        UI.PillButton nuevo = UI.solid("+  Nueva", UI.BLUE, UI.CARD_SEL);
+        UI.PillButton editar = UI.outline("Editar", UI.GRAY_TEXT, UI.SEARCH_BG);
+        editar.setForeground(UI.GRAY_TEXT);
+        UI.PillButton eliminar = UI.outline("Eliminar", UI.RED, UI.RED_BG);
 
         nuevo.addActionListener(e -> dialogoCarrera(null));
         editar.addActionListener(e -> {
-            int r = filaSeleccionada(tabla);
-            if (r >= 0) dialogoCarrera(carrerasCache.get(r));
+            int r = tabla.getSelectedRow();
+            if (r < 0) { error("Selecciona una carrera primero."); return; }
+            dialogoCarrera(carrerasCache.get(r));
         });
         eliminar.addActionListener(e -> {
-            int r = filaSeleccionada(tabla);
-            if (r >= 0 && confirmar("¿Eliminar la carrera seleccionada?")) {
+            int r = tabla.getSelectedRow();
+            if (r < 0) { error("Selecciona una carrera primero."); return; }
+            if (confirmar("¿Eliminar la carrera seleccionada?")) {
                 try {
                     negocio.eliminarCarrera(carrerasCache.get(r).getId());
                     info("Carrera eliminada.");
@@ -563,17 +1197,17 @@ public class VentanaPrincipal extends JFrame {
                 }
             }
         });
-        refrescar.addActionListener(e -> cargarCarreras());
 
-        JPanel panel = new JPanel(new BorderLayout());
-        panel.add(barraBotones(nuevo, editar, eliminar, refrescar), BorderLayout.NORTH);
-        panel.add(new JScrollPane(tabla), BorderLayout.CENTER);
-        return panel;
+        JPanel acc = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 0));
+        acc.setOpaque(false);
+        acc.add(nuevo); acc.add(editar); acc.add(eliminar);
+        return panelTabla("Carreras", "Programas educativos y su tiempo límite de uso diario.", tabla, acc);
     }
 
     private void cargarCarreras() {
         try {
             carrerasCache = negocio.listarCarreras();
+            if (modeloCarreras == null) return;
             modeloCarreras.setRowCount(0);
             for (Carrera c : carrerasCache) {
                 modeloCarreras.addRow(new Object[]{
@@ -626,24 +1260,28 @@ public class VentanaPrincipal extends JFrame {
         }
     }
 
-    // ════════════════════════ SOFTWARE ════════════════════════
-    private JPanel buildSoftwareTab() {
+    // ──────────── SOFTWARE ────────────
+    private List<Software> softwareCache = new ArrayList<>();
+
+    private JPanel buildSoftwarePanel() {
         modeloSoftware = new DefaultTableModel(new Object[]{"ID", "Nombre", "Descripción"}, 0);
         JTable tabla = tablaNoEditable(modeloSoftware);
 
-        JButton nuevo = new JButton("Nuevo");
-        JButton editar = new JButton("Editar");
-        JButton eliminar = new JButton("Eliminar");
-        JButton refrescar = new JButton("Refrescar");
+        UI.PillButton nuevo = UI.solid("+  Nuevo", UI.BLUE, UI.CARD_SEL);
+        UI.PillButton editar = UI.outline("Editar", UI.GRAY_TEXT, UI.SEARCH_BG);
+        editar.setForeground(UI.GRAY_TEXT);
+        UI.PillButton eliminar = UI.outline("Eliminar", UI.RED, UI.RED_BG);
 
         nuevo.addActionListener(e -> dialogoSoftware(null));
         editar.addActionListener(e -> {
-            int r = filaSeleccionada(tabla);
-            if (r >= 0) dialogoSoftware(softwareCache.get(r));
+            int r = tabla.getSelectedRow();
+            if (r < 0) { error("Selecciona un software primero."); return; }
+            dialogoSoftware(softwareCache.get(r));
         });
         eliminar.addActionListener(e -> {
-            int r = filaSeleccionada(tabla);
-            if (r >= 0 && confirmar("¿Eliminar el software seleccionado?")) {
+            int r = tabla.getSelectedRow();
+            if (r < 0) { error("Selecciona un software primero."); return; }
+            if (confirmar("¿Eliminar el software seleccionado?")) {
                 try {
                     negocio.eliminarSoftware(softwareCache.get(r).getId());
                     info("Software eliminado.");
@@ -653,17 +1291,17 @@ public class VentanaPrincipal extends JFrame {
                 }
             }
         });
-        refrescar.addActionListener(e -> cargarSoftware());
 
-        JPanel panel = new JPanel(new BorderLayout());
-        panel.add(barraBotones(nuevo, editar, eliminar, refrescar), BorderLayout.NORTH);
-        panel.add(new JScrollPane(tabla), BorderLayout.CENTER);
-        return panel;
+        JPanel acc = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 0));
+        acc.setOpaque(false);
+        acc.add(nuevo); acc.add(editar); acc.add(eliminar);
+        return panelTabla("Software", "Catálogo de programas disponibles para asignar a los equipos.", tabla, acc);
     }
 
     private void cargarSoftware() {
         try {
             softwareCache = negocio.listarSoftware();
+            if (modeloSoftware == null) return;
             modeloSoftware.setRowCount(0);
             for (Software s : softwareCache) {
                 modeloSoftware.addRow(new Object[]{s.getId(), s.getNombre(), s.getDescripcion()});
@@ -708,20 +1346,21 @@ public class VentanaPrincipal extends JFrame {
         }
     }
 
-    // ════════════════════════ BLOQUEOS ════════════════════════
-    private JPanel buildBloqueosTab() {
-        modeloBloqueos = new DefaultTableModel(
-                new Object[]{"ID", "Alumno", "Fecha bloqueo", "Motivo"}, 0);
+    // ──────────── BLOQUEOS ────────────
+    private JPanel buildBloqueosPanel() {
+        modeloBloqueos = new DefaultTableModel(new Object[]{"ID", "Alumno", "Fecha bloqueo", "Motivo"}, 0);
         JTable tabla = tablaNoEditable(modeloBloqueos);
 
-        JButton bloquear = new JButton("Bloquear alumno…");
-        JButton desbloquear = new JButton("Desbloquear seleccionado");
-        JButton refrescar = new JButton("Refrescar");
+        UI.PillButton bloquear = UI.solid("+  Bloquear alumno", UI.BLUE, UI.CARD_SEL);
+        UI.PillButton desbloquear = UI.solid("Desbloquear", UI.BTN_GREEN, UI.BTN_GREEN_HV);
+        UI.PillButton refrescar = UI.outline("Refrescar", UI.GRAY_TEXT, UI.SEARCH_BG);
+        refrescar.setForeground(UI.GRAY_TEXT);
 
         bloquear.addActionListener(e -> dialogoBloqueo());
         desbloquear.addActionListener(e -> {
-            int r = filaSeleccionada(tabla);
-            if (r >= 0 && confirmar("¿Desbloquear al alumno seleccionado?")) {
+            int r = tabla.getSelectedRow();
+            if (r < 0) { error("Selecciona un bloqueo primero."); return; }
+            if (confirmar("¿Desbloquear al alumno seleccionado?")) {
                 try {
                     negocio.desbloquearAlumno(bloqueosCache.get(r).getIdAlumno());
                     info("Alumno desbloqueado.");
@@ -734,10 +1373,10 @@ public class VentanaPrincipal extends JFrame {
         });
         refrescar.addActionListener(e -> cargarBloqueos());
 
-        JPanel panel = new JPanel(new BorderLayout());
-        panel.add(barraBotones(bloquear, desbloquear, refrescar), BorderLayout.NORTH);
-        panel.add(new JScrollPane(tabla), BorderLayout.CENTER);
-        return panel;
+        JPanel acc = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 0));
+        acc.setOpaque(false);
+        acc.add(bloquear); acc.add(desbloquear); acc.add(refrescar);
+        return panelTabla("Bloqueos", "Bloqueos activos de alumnos con su fecha y motivo.", tabla, acc);
     }
 
     private void cargarBloqueos() {
@@ -800,37 +1439,6 @@ public class VentanaPrincipal extends JFrame {
             } catch (NegocioException ex) {
                 error(ex.getMessage());
             }
-        }
-    }
-
-    // ════════════════════════ APARTADOS (consulta) ════════════════════════
-    private JPanel buildApartadosTab() {
-        modeloApartados = new DefaultTableModel(
-                new Object[]{"ID", "Alumno", "N° Máquina", "Laboratorio", "Inicio", "Fin / Estado"}, 0);
-        JTable tabla = tablaNoEditable(modeloApartados);
-
-        JButton refrescar = new JButton("Refrescar");
-        refrescar.addActionListener(e -> cargarApartados());
-
-        JPanel panel = new JPanel(new BorderLayout());
-        panel.add(barraBotones(refrescar), BorderLayout.NORTH);
-        panel.add(new JScrollPane(tabla), BorderLayout.CENTER);
-        return panel;
-    }
-
-    private void cargarApartados() {
-        try {
-            modeloApartados.setRowCount(0);
-            for (Apartado ap : negocio.listarApartados()) {
-                String fin = ap.isActivo() ? "ACTIVO"
-                        : (ap.getFinPrestamo() != null ? ap.getFinPrestamo().format(F_FECHAHORA) : "");
-                modeloApartados.addRow(new Object[]{
-                    ap.getId(), ap.getAlumnoNombre(), ap.getNumeroMaquina(), ap.getLaboratorioNombre(),
-                    ap.getInicioPrestamo() != null ? ap.getInicioPrestamo().format(F_FECHAHORA) : "",
-                    fin});
-            }
-        } catch (NegocioException ex) {
-            error(ex.getMessage());
         }
     }
 }
